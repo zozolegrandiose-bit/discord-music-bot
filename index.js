@@ -35,6 +35,7 @@ const BIRTHDAYS_FILE = path.join(__dirname, 'birthdays.json');
 const PROFILES_FILE = path.join(__dirname, 'profiles.json');
 const MARRIAGES_FILE = path.join(__dirname, 'marriages.json');
 const VOICESTATS_FILE = path.join(__dirname, 'voicestats.json');
+const PLAYLISTS_FILE = path.join(__dirname, 'playlists.json');
 function loadNotes() { try { return JSON.parse(fs.readFileSync(NOTES_FILE, 'utf8')); } catch { return {}; } }
 function saveNotes(d) { fs.writeFileSync(NOTES_FILE, JSON.stringify(d, null, 2), 'utf8'); }
 function loadBirthdays() { try { return JSON.parse(fs.readFileSync(BIRTHDAYS_FILE, 'utf8')); } catch { return {}; } }
@@ -45,6 +46,8 @@ function loadMarriages() { try { return JSON.parse(fs.readFileSync(MARRIAGES_FIL
 function saveMarriages(d) { fs.writeFileSync(MARRIAGES_FILE, JSON.stringify(d, null, 2), 'utf8'); }
 function loadVoiceStats() { try { return JSON.parse(fs.readFileSync(VOICESTATS_FILE, 'utf8')); } catch { return {}; } }
 function saveVoiceStats(d) { fs.writeFileSync(VOICESTATS_FILE, JSON.stringify(d, null, 2), 'utf8'); }
+function loadPlaylists() { try { return JSON.parse(fs.readFileSync(PLAYLISTS_FILE, 'utf8')); } catch { return {}; } }
+function savePlaylists(d) { fs.writeFileSync(PLAYLISTS_FILE, JSON.stringify(d, null, 2), 'utf8'); }
 const voiceSessions = new Map();
 
 function formatVoiceTime(ms) {
@@ -249,7 +252,13 @@ function buildPlayerRows(queue) {
     new ButtonBuilder().setCustomId('music_247').setEmoji(queue.stay247 ? '🟢' : '🔘').setLabel('24/7').setStyle(queue.stay247 ? ButtonStyle.Success : ButtonStyle.Secondary),
   );
 
-  return [row1, row2];
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('music_pl_save').setEmoji('💾').setLabel('Sauvegarder').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('music_pl_load').setEmoji('📂').setLabel('Charger').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('music_pl_list').setEmoji('📋').setLabel('Mes playlists').setStyle(ButtonStyle.Secondary),
+  );
+
+  return [row1, row2, row3];
 }
 
 function buildNowPlayingEmbed(track, queue) {
@@ -930,6 +939,111 @@ client.on('interactionCreate', async (interaction) => {
       if (queue.stay247) clearTimeout(queue.idleTimer);
       await updateNowPlayingMsg(queue);
       await interaction.deferUpdate();
+    }
+
+    else if (action === 'music_pl_save') {
+      if (!queue.tracks.length) return interaction.reply({ content: 'La file est vide.', ephemeral: true });
+      const playlists = loadPlaylists();
+      const userKey = interaction.user.id;
+      if (!playlists[userKey]) playlists[userKey] = {};
+      const count = Object.keys(playlists[userKey]).length;
+
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder().setCustomId('pl_save_name').setPlaceholder('Choisis ou sauvegarder...').addOptions(
+          ...(count > 0 ? Object.keys(playlists[userKey]).slice(0, 20).map(name => ({
+            label: `📁 ${name} (ecraser)`,
+            description: `${playlists[userKey][name].length} pistes`,
+            value: `existing_${name}`,
+          })) : []),
+          { label: '➕ Nouvelle playlist', description: 'Creer une nouvelle playlist', value: 'new_playlist', emoji: '💾' },
+        )
+      );
+      const reply = await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setDescription(`💾 Sauvegarder **${queue.tracks.length}** piste${queue.tracks.length > 1 ? 's' : ''} dans une playlist :\n\nChoisis une playlist existante ou cree-en une nouvelle.`)], components: [row], ephemeral: true, fetchReply: true });
+
+      const coll = reply.createMessageComponentCollector({ time: 30000 });
+      coll.on('collect', async i => {
+        if (!i.isStringSelectMenu()) return;
+        const val = i.values[0];
+        if (val === 'new_playlist') {
+          const name = `playlist-${Date.now().toString(36)}`;
+          playlists[userKey][name] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
+          savePlaylists(playlists);
+          coll.stop();
+          return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`💾 Playlist **${name}** creee avec **${queue.tracks.length}** pistes.\n\nRenomme-la avec \`/manage playlist delete\` + \`/manage playlist save\`.`)], components: [] });
+        }
+        const name = val.replace('existing_', '');
+        playlists[userKey][name] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
+        savePlaylists(playlists);
+        coll.stop();
+        i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`💾 Playlist **${name}** mise a jour avec **${queue.tracks.length}** pistes.`)], components: [] });
+      });
+      coll.on('end', (_, r) => { if (r === 'time') reply.edit({ components: [] }).catch(() => {}); });
+    }
+
+    else if (action === 'music_pl_load') {
+      const playlists = loadPlaylists();
+      const userKey = interaction.user.id;
+      const userPl = playlists[userKey] || {};
+      const names = Object.keys(userPl);
+
+      if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('📂 Tu n\'as aucune playlist sauvegardee.\nUtilise le bouton **💾 Sauvegarder** pour en creer une.')], ephemeral: true });
+
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder().setCustomId('pl_load_select').setPlaceholder('Choisis une playlist...').addOptions(
+          ...names.slice(0, 25).map(name => ({
+            label: name,
+            description: `${userPl[name].length} pistes`,
+            value: name,
+            emoji: '📁',
+          }))
+        )
+      );
+      const reply = await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setDescription('📂 Quelle playlist veux-tu charger ?')], components: [row], ephemeral: true, fetchReply: true });
+
+      const coll = reply.createMessageComponentCollector({ time: 30000 });
+      coll.on('collect', async i => {
+        if (!i.isStringSelectMenu()) return;
+        const name = i.values[0];
+        const tracks = userPl[name].map(t => ({ ...t, requestedBy: interaction.user.tag }));
+        queue.tracks.push(...tracks);
+        queue.textChannel = interaction.channel;
+
+        if (!queue.connection) {
+          const vc = interaction.member.voice.channel;
+          if (!vc) { coll.stop(); return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Tu dois etre dans un salon vocal.')], components: [] }); }
+          setupConnection(queue, vc, interaction.guild);
+          playNext(interaction.guild.id);
+        }
+
+        coll.stop();
+        const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+        i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`📂 **${name}** chargee — **${tracks.length}** pistes ajoutees (\`${formatDuration(totalDur)}\`)`)], components: [] });
+      });
+      coll.on('end', (_, r) => { if (r === 'time') reply.edit({ components: [] }).catch(() => {}); });
+    }
+
+    else if (action === 'music_pl_list') {
+      const playlists = loadPlaylists();
+      const userPl = playlists[interaction.user.id] || {};
+      const names = Object.keys(userPl);
+
+      if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('Tu n\'as aucune playlist.')], ephemeral: true });
+
+      const desc = names.map(name => {
+        const tracks = userPl[name];
+        const dur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+        return `> 📁  **${name}** — ${tracks.length} piste${tracks.length > 1 ? 's' : ''} (\`${formatDuration(dur)}\`)`;
+      }).join('\n');
+
+      await interaction.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(COLORS.MUSIC)
+          .setAuthor({ name: `Playlists de ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+          .setDescription(desc)
+          .setFooter({ text: `${names.length}/25 playlists  ┃  ${BOT_FOOTER.text}` })
+          .setTimestamp()],
+        ephemeral: true,
+      });
     }
 
     return;
@@ -3400,10 +3514,28 @@ client.on('interactionCreate', async (interaction) => {
     }
     else if (group === 'birthday') {
       const bdays = loadBirthdays();
-      if (sub === 'set') { const date = interaction.options.getString('date'); if (!/^\d{1,2}\/\d{1,2}$/.test(date)) return interaction.reply({ content: 'Format invalide. Utilise JJ/MM.', ephemeral: true }); bdays[`${guild.id}-${interaction.user.id}`] = date; saveBirthdays(bdays); await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`🎂 Anniversaire defini le **${date}**.`)] }); }
-      else if (sub === 'check') { const u = interaction.options.getUser('membre') || interaction.user; const d = bdays[`${guild.id}-${u.id}`]; await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription(d ? `🎂 **${u.tag}** : **${d}**` : `Pas d'anniversaire defini pour ${u.tag}.`)] }); }
-      else if (sub === 'list') { const entries = Object.entries(bdays).filter(([k]) => k.startsWith(guild.id)).map(([k, v]) => ({ userId: k.split('-')[1], date: v, sort: (() => { const [d, m] = v.split('/'); return parseInt(m) * 100 + parseInt(d); })() })).sort((a, b) => a.sort - b.sort); if (!entries.length) return interaction.reply({ content: 'Aucun anniversaire.', ephemeral: true }); const desc = await Promise.all(entries.slice(0, 15).map(async e => { const u = await client.users.fetch(e.userId).catch(() => null); return `**${e.date}** — ${u?.tag || 'Inconnu'}`; })); await interaction.reply({ embeds: [new EmbedBuilder().setColor(0xf1c40f).setTitle('🎂 Anniversaires').setDescription(desc.join('\n'))] }); }
-      else if (sub === 'remove') { delete bdays[`${guild.id}-${interaction.user.id}`]; saveBirthdays(bdays); await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription('Anniversaire supprime.')] }); }
+      if (sub === 'set') {
+        const date = interaction.options.getString('date');
+        const target = interaction.options.getUser('membre') || interaction.user;
+        if (!/^\d{1,2}\/\d{1,2}$/.test(date)) return interaction.reply({ content: 'Format invalide. Utilise JJ/MM (ex: 25/12).', ephemeral: true });
+        const [d, m] = date.split('/').map(Number);
+        if (m < 1 || m > 12 || d < 1 || d > 31) return interaction.reply({ content: 'Date invalide.', ephemeral: true });
+        bdays[`${guild.id}-${target.id}`] = date;
+        saveBirthdays(bdays);
+        const who = target.id === interaction.user.id ? 'Ton anniversaire' : `L'anniversaire de **${target.tag}**`;
+        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`🎂 ${who} a ete defini le **${date}**.`).setFooter(BOT_FOOTER).setTimestamp()] });
+      }
+      else if (sub === 'check') { const u = interaction.options.getUser('membre') || interaction.user; const d = bdays[`${guild.id}-${u.id}`]; await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription(d ? `🎂 **${u.tag}** : **${d}**` : `Pas d'anniversaire defini pour ${u.tag}.`).setThumbnail(u.displayAvatarURL()).setFooter(BOT_FOOTER).setTimestamp()] }); }
+      else if (sub === 'list') { const entries = Object.entries(bdays).filter(([k]) => k.startsWith(guild.id)).map(([k, v]) => ({ userId: k.split('-')[1], date: v, sort: (() => { const [d, m] = v.split('/'); return parseInt(m) * 100 + parseInt(d); })() })).sort((a, b) => a.sort - b.sort); if (!entries.length) return interaction.reply({ content: 'Aucun anniversaire.', ephemeral: true }); const desc = await Promise.all(entries.slice(0, 20).map(async e => { const u = await client.users.fetch(e.userId).catch(() => null); return `> 🎂  **${e.date}** — ${u?.tag || 'Inconnu'}`; })); await interaction.reply({ embeds: [new EmbedBuilder().setColor(0xf1c40f).setTitle('🎂 Anniversaires du serveur').setDescription(desc.join('\n')).setFooter({ text: `${entries.length} anniversaire${entries.length > 1 ? 's' : ''} enregistre${entries.length > 1 ? 's' : ''}  ┃  ${BOT_FOOTER.text}` }).setTimestamp()] }); }
+      else if (sub === 'remove') {
+        const target = interaction.options.getUser('membre') || interaction.user;
+        const key = `${guild.id}-${target.id}`;
+        if (!bdays[key]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription(`Pas d'anniversaire defini pour **${target.tag}**.`)], ephemeral: true });
+        delete bdays[key];
+        saveBirthdays(bdays);
+        const who = target.id === interaction.user.id ? 'Ton anniversaire' : `L'anniversaire de **${target.tag}**`;
+        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`${who} a ete supprime.`).setFooter(BOT_FOOTER).setTimestamp()] });
+      }
     }
     else if (group === 'note') {
       const notes = loadNotes(); const key = `${guild.id}-${interaction.user.id}`; if (!notes[key]) notes[key] = [];
@@ -3579,11 +3711,197 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`Stats vocales de **${user.tag}** reinitialise.`)] });
       }
     }
+
+    // ─── Playlists personnelles ───────────────────────────────────────
+    else if (group === 'playlist') {
+      const playlists = loadPlaylists();
+      const userKey = interaction.user.id;
+      if (!playlists[userKey]) playlists[userKey] = {};
+
+      if (sub === 'save') {
+        const nom = interaction.options.getString('nom').toLowerCase().replace(/[^a-z0-9-_]/g, '');
+        if (!nom) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Nom invalide (lettres, chiffres, tirets).')], ephemeral: true });
+        if (!queue.tracks.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('La file d\'attente est vide.')], ephemeral: true });
+        if (Object.keys(playlists[userKey]).length >= 25) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Maximum 25 playlists. Supprime-en une d\'abord.')], ephemeral: true });
+
+        playlists[userKey][nom] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
+        savePlaylists(playlists);
+
+        const totalDur = queue.tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.MUSIC)
+            .setTitle('💾 Playlist sauvegardee')
+            .setDescription([
+              `> 📁  **${nom}**`,
+              `> 🎵  **${queue.tracks.length}** piste${queue.tracks.length > 1 ? 's' : ''}`,
+              `> 🕐  Duree totale : **${formatDuration(totalDur)}**`,
+              '',
+              `Utilise \`/manage playlist load ${nom}\` pour la recharger.`,
+            ].join('\n'))
+            .setFooter(BOT_FOOTER).setTimestamp()],
+        });
+      }
+
+      else if (sub === 'load') {
+        const nom = interaction.options.getString('nom').toLowerCase();
+        if (!playlists[userKey]?.[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable. Utilise \`/manage playlist list\`.`)], ephemeral: true });
+        const voiceChannel = member.voice.channel;
+        if (!voiceChannel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Tu dois etre dans un salon vocal.')], ephemeral: true });
+
+        const tracks = playlists[userKey][nom].map(t => ({ ...t, requestedBy: member.user.tag }));
+        queue.tracks.push(...tracks);
+        queue.textChannel = channel;
+
+        if (!queue.connection) {
+          setupConnection(queue, voiceChannel, guild);
+          playNext(guild.id);
+        }
+
+        const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.MUSIC)
+            .setTitle('📂 Playlist chargee')
+            .setDescription([
+              `> 📁  **${nom}**`,
+              `> 🎵  **${tracks.length}** piste${tracks.length > 1 ? 's' : ''} ajoutee${tracks.length > 1 ? 's' : ''}`,
+              `> 🕐  Duree : **${formatDuration(totalDur)}**`,
+            ].join('\n'))
+            .setFooter(BOT_FOOTER).setTimestamp()],
+        });
+      }
+
+      else if (sub === 'list') {
+        const userPlaylists = playlists[userKey] || {};
+        const names = Object.keys(userPlaylists);
+        if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('Tu n\'as aucune playlist sauvegardee.\nUtilise `/manage playlist save <nom>` pendant qu\'une file joue.')], ephemeral: true });
+
+        const desc = names.map(name => {
+          const tracks = userPlaylists[name];
+          const dur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+          return `> 📁  **${name}** — ${tracks.length} piste${tracks.length > 1 ? 's' : ''} (\`${formatDuration(dur)}\`)`;
+        }).join('\n');
+
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.MUSIC)
+            .setAuthor({ name: `Playlists de ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+            .setDescription(desc)
+            .setFooter({ text: `${names.length}/25 playlists  ┃  ${BOT_FOOTER.text}` })
+            .setTimestamp()],
+        });
+      }
+
+      else if (sub === 'delete') {
+        const nom = interaction.options.getString('nom').toLowerCase();
+        if (!playlists[userKey]?.[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable.`)], ephemeral: true });
+        delete playlists[userKey][nom];
+        savePlaylists(playlists);
+        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`🗑️ Playlist **${nom}** supprimee.`)], ephemeral: true });
+      }
+
+      else if (sub === 'view') {
+        const nom = interaction.options.getString('nom').toLowerCase();
+        if (!playlists[userKey]?.[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable.`)], ephemeral: true });
+        const tracks = playlists[userKey][nom];
+        const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
+        const list = tracks.slice(0, 15).map((t, i) => `\`${i + 1}.\` ${t.title} — \`${t.duration}\``).join('\n');
+
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.MUSIC)
+            .setTitle(`📁 ${nom}`)
+            .setDescription(list + (tracks.length > 15 ? `\n*...et ${tracks.length - 15} autres*` : ''))
+            .setFooter({ text: `${tracks.length} pistes  ┃  ${formatDuration(totalDur)}  ┃  ${BOT_FOOTER.text}` })
+            .setTimestamp()],
+        });
+      }
+    }
+
+    // ─── Config anniversaires ─────────────────────────────────────────
+    else if (group === 'birthdayconfig') {
+      if (sub === 'channel') {
+        const ch = interaction.options.getChannel('salon');
+        setGuildSetting(guild.id, 'birthdayChannel', ch?.id || null);
+        await interaction.reply({
+          embeds: [new EmbedBuilder()
+            .setColor(COLORS.PLAY)
+            .setDescription(ch
+              ? `🎂 Annonces d'anniversaire dans ${ch}.\nLe bot verifie automatiquement chaque heure et souhaite un bon anniversaire aux membres qui ont defini leur date avec \`/manage birthday set\`.`
+              : 'Annonces d\'anniversaire desactivees.')
+            .setFooter(BOT_FOOTER).setTimestamp()],
+        });
+      }
+    }
   }
 });
 
+const { ActivityType } = require('discord.js');
+
 client.once('ready', () => {
   console.log(`Connecte en tant que ${client.user.tag}`);
+
+  let statusIndex = 0;
+  const updateStatus = () => {
+    const totalMembers = client.guilds.cache.reduce((a, g) => a + g.memberCount, 0);
+    const totalServers = client.guilds.cache.size;
+    const activePlayers = queues.size;
+    const up = formatUptime(Date.now() - startTime);
+
+    const statuses = [
+      { text: `/help | 200+ commandes` },
+      { text: `Uptime: ${up}` },
+      { text: `/play pour ecouter de la musique` },
+      { text: `WHP CORE` },
+    ];
+
+    const s = statuses[statusIndex % statuses.length];
+    client.user.setActivity(s.text, { type: ActivityType.Streaming, url: 'https://twitch.tv/whipping' });
+    statusIndex++;
+  };
+
+  updateStatus();
+  setInterval(updateStatus, 30000);
+
+  // Anniversaire auto check toutes les heures
+  setInterval(() => {
+    const bdays = loadBirthdays();
+    const now = new Date();
+    const today = `${now.getDate()}/${now.getMonth() + 1}`;
+    client.guilds.cache.forEach(async (g) => {
+      const s = getGuildSettings(g.id);
+      if (!s.welcomeChannel && !s.birthdayChannel) return;
+      const ch = g.channels.cache.get(s.birthdayChannel || s.welcomeChannel);
+      if (!ch) return;
+
+      Object.entries(bdays).forEach(async ([key, date]) => {
+        if (!key.startsWith(g.id)) return;
+        const [d, m] = date.split('/');
+        if (parseInt(d) === now.getDate() && parseInt(m) === now.getMonth() + 1) {
+          const userId = key.split('-')[1];
+          const checked = loadSettings();
+          const checkKey = `bday_sent_${key}_${now.getFullYear()}`;
+          if (checked[checkKey]) return;
+          checked[checkKey] = true;
+          saveSettings(checked);
+
+          const user = await client.users.fetch(userId).catch(() => null);
+          if (!user) return;
+          ch.send({
+            content: `${user}`,
+            embeds: [new EmbedBuilder()
+              .setColor(0xf1c40f)
+              .setTitle('🎂🎉 Joyeux anniversaire !')
+              .setDescription(`Aujourd'hui c'est l'anniversaire de **${user.tag}** !\n\nTout le monde lui souhaite un bon anniversaire ! 🥳🎁🎈`)
+              .setThumbnail(user.displayAvatarURL({ size: 256 }))
+              .setFooter(BOT_FOOTER)
+              .setTimestamp()],
+          }).catch(() => {});
+        }
+      });
+    });
+  }, 3600000);
 });
 
 // Health check HTTP server for Render

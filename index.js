@@ -25,6 +25,7 @@ const client = new Client({
 });
 
 const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : path.join(__dirname, 'yt-dlp');
+const FFMPEG_PATH = require('ffmpeg-static');
 const WARNINGS_FILE = path.join(__dirname, 'warnings.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 const LEVELS_FILE = path.join(__dirname, 'levels.json');
@@ -346,8 +347,9 @@ function formatDuration(seconds) {
 }
 
 function ytdlpExec(args) {
+  const fullArgs = ['--ffmpeg-location', path.dirname(FFMPEG_PATH), ...args];
   return new Promise((resolve, reject) => {
-    execFile(YTDLP, args, { maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(YTDLP, fullArgs, { maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) return reject(new Error(stderr || err.message));
       resolve(stdout.trim());
     });
@@ -377,6 +379,7 @@ async function getVideoInfo(url) {
 
 function streamAudio(url) {
   const proc = spawn(YTDLP, [
+    '--ffmpeg-location', path.dirname(FFMPEG_PATH),
     url,
     '-f', 'ba[ext=webm]/ba/b',
     '-o', '-',

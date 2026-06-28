@@ -24,7 +24,7 @@ const client = new Client({
   ],
 });
 
-const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : path.join(__dirname, 'yt-dlp');
+const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : 'yt-dlp';
 const WARNINGS_FILE = path.join(__dirname, 'warnings.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 const LEVELS_FILE = path.join(__dirname, 'levels.json');

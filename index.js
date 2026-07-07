@@ -889,112 +889,47 @@ client.on('interactionCreate', async (interaction) => {
   // ─── Aide ────────────────────────────────────────────────────────────
 
   else if (commandName === 'help') {
-    const HELP_PAGES = {
-      home: {
-        title: '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-        color: COLORS.INFO,
-        description: [
-          '## 📖  Centre d\'aide',
-          '',
-          '> Choisis une **categorie** dans le menu ci-dessous',
-          '> pour voir les commandes disponibles.',
-          '',
-          '🎵  **Musique**  ━  Lecture, recherche, YouTube',
-          '📋  **File d\'attente**  ━  Queue, skip, clear',
-          '🎛️  **Controles**  ━  Volume, boucle, 24/7, boutons',
-        ].join('\n'),
-        fields: [],
-      },
-      music: {
-        title: '🎵  Musique',
-        color: COLORS.MUSIC,
-        description: [
-          '> Lecture musicale YouTube — URL, playlist ou recherche',
-          '',
-          '▸ `/play <recherche ou URL>` — Jouer une musique, playlist ou lien',
-          '▸ `/search <recherche>` — Choisir parmi **5 resultats** YouTube',
-          '▸ `/playlist <recherche ou URL>` — Charger une **playlist entiere**',
-          '▸ `/nowplaying` — Afficher la piste en cours avec les boutons',
-          '▸ `/pause` ┃ `/resume` — Mettre en pause / reprendre',
-          '▸ `/stop` — Arreter la musique et vider la file',
-          '▸ `/replay` — Relancer la piste depuis le debut',
-          '▸ `/previous` — Revenir a la piste precedente',
-        ].join('\n'),
-        fields: [],
-      },
-      queue: {
-        title: '📋  File d\'attente',
-        color: COLORS.QUEUE,
-        description: [
-          '> Gestion de la file d\'attente',
-          '',
-          '▸ `/queue [page]` — Afficher la file (10 pistes par page)',
-          '▸ `/skip` — Passer a la piste suivante',
-          '▸ `/clear` — Vider la file (garde la piste en cours)',
-        ].join('\n'),
-        fields: [],
-      },
-      controls: {
-        title: '🎛️  Controles',
-        color: 0x9b59b6,
-        description: [
-          '> Volume, boucle, mode 24/7 et boutons du lecteur',
-          '',
-          '▸ `/volume <0-100>` — Regler le volume',
-          '▸ `/loop` — Cycle : **Off** → **Piste** 🔁 → **File** 🔂',
-          '▸ `/247` — Rester connecte en permanence dans le salon',
-          '',
-          '**Boutons du lecteur (sur le panel de musique)**',
-          '`⏮️` Precedent  `⏪` -10s  `⏸️` Pause  `⏩` +10s  `⏭️` Suivant',
-          '`⏹️` Stop  `🔁` Boucle  `🔄` Replay  `🟢` 24/7',
-          '`🔉` Vol-  `🔊` Vol+',
-        ].join('\n'),
-        fields: [],
-      },
-    };
-
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('help_select')
-      .setPlaceholder('Choisis une categorie...')
-      .addOptions(
-        { label: 'Accueil', description: 'Vue d\'ensemble', value: 'home', emoji: '📖' },
-        { label: 'Musique', description: 'Play, search, playlist, replay...', value: 'music', emoji: '🎵' },
-        { label: 'File d\'attente', description: 'Queue, skip, clear...', value: 'queue', emoji: '📋' },
-        { label: 'Controles', description: 'Volume, boucle, 24/7, boutons...', value: 'controls', emoji: '🎛️' },
-      );
-
-    const page = HELP_PAGES.home;
-    const embed = new EmbedBuilder()
-      .setColor(page.color)
-      .setTitle(page.title)
-      .setDescription(page.description || null)
-      .addFields(page.fields)
-      .setFooter(BOT_FOOTER).setTimestamp();
-
-    const row = new ActionRowBuilder().addComponents(selectMenu);
-    const reply = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
-
-    const collector = reply.createMessageComponentCollector({ time: 300_000 });
-    collector.on('collect', async (i) => {
-      if (!i.isStringSelectMenu() || i.customId !== 'help_select') return;
-      const selected = i.values[0];
-      const p = HELP_PAGES[selected];
-      if (!p) return i.deferUpdate();
-
-      const e = new EmbedBuilder()
-        .setColor(p.color)
-        .setTitle(p.title)
-        .setDescription(p.description || null)
-        .addFields(p.fields)
-        .setFooter(BOT_FOOTER).setTimestamp();
-
-      await i.update({ embeds: [e], components: [row] });
-    });
-
-    collector.on('end', async () => {
-      try {
-        await reply.edit({ components: [] });
-      } catch {}
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(COLORS.MUSIC)
+        .setTitle('🎵  Whipping Bot — Commandes')
+        .addFields(
+          {
+            name: '▸ Lecture',
+            value: [
+              '`/play <recherche ou URL>` — Jouer une musique ou URL YouTube',
+              '`/search <recherche>` — Choisir parmi 5 résultats',
+              '`/playlist <recherche ou URL>` — Charger une playlist entière',
+              '`/nowplaying` — Afficher la piste en cours',
+              '`/pause` · `/resume` — Pause / reprendre',
+              '`/stop` — Arrêter et vider la file',
+              '`/replay` — Relancer depuis le début',
+              '`/previous` — Revenir à la piste précédente',
+            ].join('\n'),
+          },
+          {
+            name: '▸ File d\'attente',
+            value: [
+              '`/queue [page]` — Afficher la file (10 pistes par page)',
+              '`/skip` — Passer à la piste suivante',
+              '`/clear` — Vider la file (garde la piste en cours)',
+            ].join('\n'),
+          },
+          {
+            name: '▸ Contrôles',
+            value: [
+              '`/volume <0-100>` — Régler le volume',
+              '`/loop` — Cycle : Off → Piste 🔁 → File 🔂',
+              '`/247` — Rester connecté en permanence dans le salon',
+            ].join('\n'),
+          },
+          {
+            name: '▸ Boutons du panel',
+            value: '`⏮️` Préc  `⏪` -10s  `⏸️` Pause  `⏩` +10s  `⏭️` Suiv\n`⏹️` Stop  `🔁` Boucle  `🔄` Replay  `🟢` 24/7\n`🔉` Vol-  `🔊` Vol+',
+          },
+        )
+        .setFooter(BOT_FOOTER)
+        .setTimestamp()],
     });
   }
 

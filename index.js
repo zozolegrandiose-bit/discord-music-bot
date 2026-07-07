@@ -488,10 +488,9 @@ client.on('interactionCreate', async (interaction) => {
   // ─── Boutons du lecteur ───────────────────────────────────────────
   if (interaction.isButton() && interaction.customId.startsWith('music_')) {
     const queue = getQueue(interaction.guild.id);
-    const voiceChannel = interaction.member.voice.channel;
 
-    if (!voiceChannel || !queue.connection) {
-      return interaction.reply({ content: 'Tu dois etre dans le salon vocal.', ephemeral: true });
+    if (!queue.connection) {
+      return interaction.reply({ content: 'Aucune lecture en cours.', ephemeral: true });
     }
 
     const action = interaction.customId;

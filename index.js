@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-const fs = require('fs');
 const {
   joinVoiceChannel,
   createAudioPlayer,
@@ -53,9 +52,6 @@ const COLORS = {
 
 const BOT_FOOTER = { text: '𝗪𝗵𝗶𝗽𝗽𝗶𝗻𝗴 𝗕𝗼𝘁 ━━━━━━━━━━━━━━━━━━' };
 
-function embed(color = COLORS.INFO) {
-  return new EmbedBuilder().setColor(color).setFooter(BOT_FOOTER).setTimestamp();
-}
 
 function getElapsedMs(queue) {
   if (!queue.startedAt) return 0;
@@ -118,7 +114,6 @@ function buildPlayerRows(queue) {
   const row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('music_stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('music_loop').setEmoji(loopEmoji).setLabel(LOOP_LABELS[queue.loopMode]).setStyle(loopStyle),
-    new ButtonBuilder().setCustomId('music_shuffle').setEmoji('🔀').setStyle(ButtonStyle.Secondary).setDisabled(queue.tracks.length < 3),
     new ButtonBuilder().setCustomId('music_replay').setEmoji('🔄').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('music_247').setEmoji(queue.stay247 ? '🟢' : '🔘').setLabel('24/7').setStyle(queue.stay247 ? ButtonStyle.Success : ButtonStyle.Secondary),
   );
@@ -554,18 +549,6 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.deferUpdate();
     }
 
-    else if (action === 'music_shuffle') {
-      if (queue.tracks.length >= 3) {
-        const current = queue.tracks.shift();
-        for (let i = queue.tracks.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [queue.tracks[i], queue.tracks[j]] = [queue.tracks[j], queue.tracks[i]];
-        }
-        queue.tracks.unshift(current);
-        await updateNowPlayingMsg(queue);
-      }
-      await interaction.deferUpdate();
-    }
 
     else if (action === 'music_voldown') {
       queue.volume = Math.max(0, queue.volume - 0.1);
@@ -800,44 +783,6 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.reply({ embeds: [buildNowPlayingEmbed(current, queue)], components: buildPlayerRows(queue) });
   }
 
-  else if (commandName === 'shuffle') {
-    if (queue.tracks.length < 3) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Pas assez de pistes pour melanger.')],
-        ephemeral: true,
-      });
-    }
-    const current = queue.tracks.shift();
-    for (let i = queue.tracks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [queue.tracks[i], queue.tracks[j]] = [queue.tracks[j], queue.tracks[i]];
-    }
-    queue.tracks.unshift(current);
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(COLORS.QUEUE).setDescription(`File d'attente melangee ! (${queue.tracks.length} pistes)`)],
-    });
-  }
-
-  else if (commandName === 'remove') {
-    const pos = interaction.options.getInteger('position');
-    if (pos < 1 || pos > queue.tracks.length) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Position invalide. La file contient ${queue.tracks.length} piste(s).`)],
-        ephemeral: true,
-      });
-    }
-    if (pos === 1) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Utilise `/skip` pour passer la piste en cours.')],
-        ephemeral: true,
-      });
-    }
-    const removed = queue.tracks.splice(pos - 1, 1)[0];
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription(`Retiree : **${removed.title}**`)],
-    });
-  }
-
   else if (commandName === 'clear') {
     if (queue.tracks.length <= 1) {
       return interaction.reply({
@@ -849,40 +794,6 @@ client.on('interactionCreate', async (interaction) => {
     queue.tracks = [current];
     await interaction.reply({
       embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription('File d\'attente videe (la piste en cours continue).')],
-    });
-  }
-
-  else if (commandName === 'skipto') {
-    const pos = interaction.options.getInteger('position');
-    if (!queue.tracks.length || pos < 1 || pos > queue.tracks.length) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Position invalide. La file contient ${queue.tracks.length} piste(s).`)],
-        ephemeral: true,
-      });
-    }
-    const skipped = queue.tracks.splice(0, pos - 1);
-    queue.history.push(...skipped);
-    queue.loopMode = 'off';
-    queue.player?.stop(true);
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription(`Saute a la piste **#${pos}** : **${queue.tracks[0]?.title}**`)],
-    });
-  }
-
-  else if (commandName === 'move') {
-    const from = interaction.options.getInteger('de');
-    const to = interaction.options.getInteger('vers');
-    if (from < 2 || from > queue.tracks.length || to < 2 || to > queue.tracks.length) {
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Positions invalides. La position 1 est la piste en cours.')],
-        ephemeral: true,
-      });
-    }
-    const [moved] = queue.tracks.splice(from - 1, 1);
-    queue.tracks.splice(to - 1, 0, moved);
-    await updateNowPlayingMsg(queue);
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(COLORS.INFO).setDescription(`**${moved.title}** deplacee de #${from} a #${to}.`)],
     });
   }
 
@@ -989,7 +900,7 @@ client.on('interactionCreate', async (interaction) => {
           '> pour voir les commandes disponibles.',
           '',
           '🎵  **Musique**  ━  Lecture, recherche, YouTube',
-          '📋  **File d\'attente**  ━  Queue, skip, shuffle, move',
+          '📋  **File d\'attente**  ━  Queue, skip, clear',
           '🎛️  **Controles**  ━  Volume, boucle, 24/7, boutons',
         ].join('\n'),
         fields: [],
@@ -1019,10 +930,6 @@ client.on('interactionCreate', async (interaction) => {
           '',
           '▸ `/queue [page]` — Afficher la file (10 pistes par page)',
           '▸ `/skip` — Passer a la piste suivante',
-          '▸ `/skipto <position>` — Sauter directement a une position',
-          '▸ `/remove <position>` — Retirer une piste de la file',
-          '▸ `/move <de> <vers>` — Deplacer une piste',
-          '▸ `/shuffle` — Melanger aleatoirement la file',
           '▸ `/clear` — Vider la file (garde la piste en cours)',
         ].join('\n'),
         fields: [],
@@ -1039,7 +946,7 @@ client.on('interactionCreate', async (interaction) => {
           '',
           '**Boutons du lecteur (sur le panel de musique)**',
           '`⏮️` Precedent  `⏪` -10s  `⏸️` Pause  `⏩` +10s  `⏭️` Suivant',
-          '`⏹️` Stop  `🔁` Boucle  `🔀` Shuffle  `🔄` Replay  `🟢` 24/7',
+          '`⏹️` Stop  `🔁` Boucle  `🔄` Replay  `🟢` 24/7',
           '`🔉` Vol-  `🔊` Vol+',
         ].join('\n'),
         fields: [],
@@ -1052,7 +959,7 @@ client.on('interactionCreate', async (interaction) => {
       .addOptions(
         { label: 'Accueil', description: 'Vue d\'ensemble', value: 'home', emoji: '📖' },
         { label: 'Musique', description: 'Play, search, playlist, replay...', value: 'music', emoji: '🎵' },
-        { label: 'File d\'attente', description: 'Queue, skip, shuffle, move...', value: 'queue', emoji: '📋' },
+        { label: 'File d\'attente', description: 'Queue, skip, clear...', value: 'queue', emoji: '📋' },
         { label: 'Controles', description: 'Volume, boucle, 24/7, boutons...', value: 'controls', emoji: '🎛️' },
       );
 

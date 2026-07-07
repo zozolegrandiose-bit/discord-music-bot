@@ -21,9 +21,10 @@ const YTDLP_ARGS = [
 ];
 
 function streamAudio(url) {
-  const proc = spawn(YTDLP, [...YTDLP_ARGS, url, '-f', 'bestaudio', '-o', '-', '--no-playlist'],
+  const proc = spawn(YTDLP, [...YTDLP_ARGS, url, '-f', 'ba[ext=webm]/251/bestaudio[ext=webm]', '-o', '-', '--no-playlist'],
     { stdio: ['ignore', 'pipe', 'pipe'] });
   proc.stderr.on('data', d => console.error('[yt-dlp]', d.toString().trim()));
+  proc.on('error', err => console.error('[yt-dlp spawn error]', err.message));
   return proc.stdout;
 }
 
@@ -284,7 +285,7 @@ async function playNext(guildId) {
 
   try {
     const audioStream = streamAudio(track.url);
-    const resource = createAudioResource(audioStream, { inputType: StreamType.Arbitrary, inlineVolume: true });
+    const resource = createAudioResource(audioStream, { inputType: StreamType.WebmOpus, inlineVolume: true });
     resource.volume?.setVolume(queue.volume);
     queue.player.play(resource);
     queue.startedAt = Date.now();

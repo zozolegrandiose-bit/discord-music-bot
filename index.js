@@ -14,7 +14,11 @@ const { execFile, spawn } = require('child_process');
 const path = require('path');
 const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : path.join(__dirname, 'yt-dlp');
 const FFMPEG_PATH = require('ffmpeg-static');
-const YTDLP_ARGS = ['--ffmpeg-location', path.dirname(FFMPEG_PATH), '--no-warnings'];
+const YTDLP_ARGS = [
+  '--ffmpeg-location', path.dirname(FFMPEG_PATH),
+  '--no-warnings',
+  '--js-runtimes', `node[${process.execPath}]`,
+];
 
 function streamAudio(url) {
   const proc = spawn(YTDLP, [...YTDLP_ARGS, url, '-f', 'bestaudio', '-o', '-', '--no-playlist'],

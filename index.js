@@ -7,8 +7,31 @@ const {
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
+  StreamType,
 } = require('@discordjs/voice');
 const playdl = require('play-dl');
+const { execFile, spawn } = require('child_process');
+const path = require('path');
+const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : path.join(__dirname, 'yt-dlp');
+const FFMPEG_PATH = require('ffmpeg-static');
+const YTDLP_ARGS = ['--ffmpeg-location', path.dirname(FFMPEG_PATH), '--no-warnings'];
+
+function streamAudio(url) {
+  const proc = spawn(YTDLP, [...YTDLP_ARGS, url, '-f', 'bestaudio', '-o', '-', '--no-playlist'],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stderr.on('data', d => console.error('[yt-dlp]', d.toString().trim()));
+  return proc.stdout;
+}
+
+function ytdlpGetUrl(url) {
+  return new Promise((resolve, reject) => {
+    execFile(YTDLP, [...YTDLP_ARGS, '--get-url', '-f', 'bestaudio', '--no-playlist', url],
+      { timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) return reject(new Error(stderr || err.message));
+        resolve(stdout.trim().split('\n')[0]);
+      });
+  });
+}
 
 const client = new Client({
   intents: [
@@ -215,8 +238,12 @@ async function seekTo(guildId, targetSec) {
   const sec = Math.max(0, Math.min(targetSec, maxSec - 1));
 
   try {
-    const stream = await playdl.stream(track.url, { seek: Math.floor(sec) });
-    const resource = createAudioResource(stream.stream, { inputType: stream.type, inlineVolume: true });
+    const directUrl = await ytdlpGetUrl(track.url);
+    const proc = spawn(FFMPEG_PATH, [
+      '-ss', `${Math.floor(sec)}`, '-i', directUrl,
+      '-f', 'opus', '-ar', '48000', '-ac', '2', '-b:a', '128k', '-loglevel', 'quiet', 'pipe:1',
+    ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const resource = createAudioResource(proc.stdout, { inputType: StreamType.Arbitrary, inlineVolume: true });
     resource.volume?.setVolume(queue.volume);
     queue.forceReplay = true;
     queue.player.play(resource);
@@ -252,8 +279,8 @@ async function playNext(guildId) {
   const track = queue.tracks[0];
 
   try {
-    const s = await playdl.stream(track.url);
-    const resource = createAudioResource(s.stream, { inputType: s.type, inlineVolume: true });
+    const audioStream = streamAudio(track.url);
+    const resource = createAudioResource(audioStream, { inputType: StreamType.Arbitrary, inlineVolume: true });
     resource.volume?.setVolume(queue.volume);
     queue.player.play(resource);
     queue.startedAt = Date.now();

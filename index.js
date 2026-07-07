@@ -211,11 +211,7 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const YTDLP_BASE_ARGS = [
-  '--ffmpeg-location', path.dirname(FFMPEG_PATH),
-  '--no-warnings',
-  '--extractor-args', 'youtube:player_client=ios,mweb,web',
-];
+const YTDLP_BASE_ARGS = ['--ffmpeg-location', path.dirname(FFMPEG_PATH), '--no-warnings'];
 
 function ytdlpExec(args) {
   const fullArgs = [...YTDLP_BASE_ARGS, ...args];

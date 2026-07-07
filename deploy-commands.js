@@ -32,41 +32,11 @@ const commands = [
   new SlashCommandBuilder().setName('search').setDescription('Rechercher et choisir parmi 5 resultats')
     .addStringOption(o => o.setName('query').setDescription('Recherche YouTube').setRequired(true)),
 
-  // ─── Playlists perso ─────────────────────────────────────────────────
-  new SlashCommandBuilder().setName('playlist-save').setDescription('Sauvegarder la file actuelle en playlist')
-    .addStringOption(o => o.setName('nom').setDescription('Nom de la playlist').setRequired(true)),
-  new SlashCommandBuilder().setName('playlist-load').setDescription('Charger une playlist sauvegardee')
-    .addStringOption(o => o.setName('nom').setDescription('Nom de la playlist').setRequired(true)),
-  new SlashCommandBuilder().setName('playlist-list').setDescription('Voir tes playlists'),
-  new SlashCommandBuilder().setName('playlist-view').setDescription('Voir le contenu d\'une playlist')
-    .addStringOption(o => o.setName('nom').setDescription('Nom de la playlist').setRequired(true)),
-  new SlashCommandBuilder().setName('playlist-delete').setDescription('Supprimer une playlist')
-    .addStringOption(o => o.setName('nom').setDescription('Nom de la playlist').setRequired(true)),
-  new SlashCommandBuilder().setName('playlist-rename').setDescription('Renommer une playlist')
-    .addStringOption(o => o.setName('ancien').setDescription('Nom actuel').setRequired(true))
-    .addStringOption(o => o.setName('nouveau').setDescription('Nouveau nom').setRequired(true)),
-
-  // ─── Tierlist ──────────────────────────────────────────────────────
-  new SlashCommandBuilder().setName('tierlist').setDescription('Afficher une tierlist aléatoire parmi 1000'),
-
-  // ─── Aide & Infos ──────────────────────────────────────────────────
+  // ─── Aide & Debug ──────────────────────────────────────────────────
   new SlashCommandBuilder().setName('help').setDescription('Afficher l\'aide avec toutes les commandes'),
-  new SlashCommandBuilder().setName('userinfo').setDescription('Infos d\'un membre')
-    .addUserOption(o => o.setName('membre').setDescription('Membre')),
-  new SlashCommandBuilder().setName('serverinfo').setDescription('Infos du serveur'),
   new SlashCommandBuilder().setName('debug').setDescription('Infos de debug du bot et du lecteur'),
   new SlashCommandBuilder().setName('forcestop').setDescription('Forcer l\'arret complet du lecteur')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
-
-  // ─── Giveaway ───────────────────────────────────────────────────────
-  new SlashCommandBuilder().setName('giveaway').setDescription('Lancer un giveaway')
-    .addStringOption(o => o.setName('prix').setDescription('Le prix a gagner').setRequired(true))
-    .addStringOption(o => o.setName('duree').setDescription('Duree (ex: 10m, 1h, 1d)').setRequired(true))
-    .addIntegerOption(o => o.setName('gagnants').setDescription('Nombre de gagnants').setMinValue(1).setMaxValue(20))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-  new SlashCommandBuilder().setName('giveaway-reroll').setDescription('Relancer un giveaway termine')
-    .addStringOption(o => o.setName('id').setDescription('ID du message giveaway').setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
 ].map(cmd => cmd.toJSON());
 

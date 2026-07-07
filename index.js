@@ -23,25 +23,11 @@ const client = new Client({
 
 const YTDLP = process.platform === 'win32' ? path.join(__dirname, 'yt-dlp.exe') : path.join(__dirname, 'yt-dlp');
 const FFMPEG_PATH = require('ffmpeg-static');
-const PLAYLISTS_FILE = path.join(__dirname, 'playlists.json');
-function loadPlaylists() { try { return JSON.parse(fs.readFileSync(PLAYLISTS_FILE, 'utf8')); } catch { return {}; } }
-function savePlaylists(d) { fs.writeFileSync(PLAYLISTS_FILE, JSON.stringify(d, null, 2), 'utf8'); }
-const { TIERLISTS, CATEGORIES } = require('./tierlists');
-const tierlistSessions = new Map();
 
 const queues = new Map();
 const startTime = Date.now();
 
 
-
-function parseDuration(str) {
-  const match = str.match(/^(\d+)\s*(s|m|h|d|w|sec|min|hour|jour|day|semaine|week)s?$/i);
-  if (!match) return null;
-  const n = parseInt(match[1]);
-  const unit = match[2].toLowerCase();
-  const multipliers = { s: 1000, sec: 1000, m: 60000, min: 60000, h: 3600000, hour: 3600000, d: 86400000, day: 86400000, jour: 86400000, w: 604800000, week: 604800000, semaine: 604800000 };
-  return n * (multipliers[unit] || 60000);
-}
 
 function formatUptime(ms) {
   const s = Math.floor(ms / 1000) % 60;
@@ -116,57 +102,6 @@ function getQueue(guildId) {
 const LOOP_LABELS = { off: 'Desactivee', track: 'Piste', queue: 'File' };
 const LOOP_CYCLE = ['off', 'track', 'queue'];
 
-// ── Tierlist interactive ─────────────────────────────────────────────
-const TL_EMOJIS = { S: '🏆', A: '⭐', B: '✅', C: '🔵', D: '❌' };
-const TL_LABELS = { S: '🏆 S', A: '⭐ A', B: '✅ B', C: '🔵 C', D: '❌ D' };
-
-function buildTierlistCategoryRow() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('tl_cat')
-      .setPlaceholder('Choisir une catégorie...')
-      .addOptions(CATEGORIES.map((cat, i) => ({
-        label: `${cat.emoji} ${cat.name}`,
-        value: String(i),
-        description: `${cat.themes.length} thèmes disponibles`,
-      })))
-  );
-}
-
-function buildItemPlacementContent(session) {
-  const item = session.items[session.index];
-  const current = session.index + 1;
-  const total = session.items.length;
-  const filled = Math.round((current / total) * 20);
-  const bar = '▰'.repeat(filled) + '▱'.repeat(20 - filled);
-
-  const placed = Object.entries(session.placements)
-    .filter(([, arr]) => arr.length)
-    .map(([t, arr]) => `${TL_EMOJIS[t]} **${t}** (${arr.length})`)
-    .join('  ');
-
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tl_place_S').setLabel('S').setEmoji('🏆').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('tl_place_A').setLabel('A').setEmoji('⭐').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('tl_place_B').setLabel('B').setEmoji('✅').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tl_place_C').setLabel('C').setEmoji('🔵').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tl_place_D').setLabel('D').setEmoji('❌').setStyle(ButtonStyle.Danger),
-  );
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tl_skip').setLabel('Passer').setEmoji('⏭️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('tl_cancel').setLabel('Annuler').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
-  );
-
-  return {
-    embeds: [new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setTitle(`🎯 ${session.themeName}`)
-      .setDescription(`\n**Item ${current} / ${total}**\n\n# ${item}\n\nOù le places-tu ?\n\n\`${bar}\`${placed ? `\n\n${placed}` : ''}`)
-      .setFooter({ text: `${current}/${total} items  ┃  ${BOT_FOOTER.text}` })],
-    components: [row1, row2],
-  };
-}
-
 function buildPlayerRows(queue) {
   const loopStyle = queue.loopMode === 'off' ? ButtonStyle.Secondary : ButtonStyle.Success;
   const loopEmoji = queue.loopMode === 'queue' ? '🔂' : '🔁';
@@ -191,16 +126,9 @@ function buildPlayerRows(queue) {
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('music_voldown').setLabel(`${volPercent}%`).setEmoji('🔉').setStyle(ButtonStyle.Secondary).setDisabled(volPercent <= 0),
     new ButtonBuilder().setCustomId('music_volup').setEmoji('🔊').setStyle(ButtonStyle.Secondary).setDisabled(volPercent >= 100),
-    new ButtonBuilder().setCustomId('music_pl_save').setEmoji('💾').setLabel('Sauvegarder').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('music_pl_load').setEmoji('📂').setLabel('Charger').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('music_pl_list').setEmoji('📋').setLabel('Playlists').setStyle(ButtonStyle.Secondary),
   );
 
-  const row4 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('music_tierlist').setEmoji('🎯').setLabel('Tierlist Aléatoire').setStyle(ButtonStyle.Secondary),
-  );
-
-  return [row1, row2, row3, row4];
+  return [row1, row2, row3];
 }
 
 function buildNowPlayingEmbed(track, queue) {
@@ -679,216 +607,6 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.deferUpdate();
     }
 
-    else if (action === 'music_pl_save') {
-      if (!queue.tracks.length) return interaction.reply({ content: 'La file est vide.', ephemeral: true });
-      const playlists = loadPlaylists();
-      const userKey = interaction.user.id;
-      if (!playlists[userKey]) playlists[userKey] = {};
-      const count = Object.keys(playlists[userKey]).length;
-
-      const row = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder().setCustomId('pl_save_name').setPlaceholder('Choisis ou sauvegarder...').addOptions(
-          ...(count > 0 ? Object.keys(playlists[userKey]).slice(0, 20).map(name => ({
-            label: `📁 ${name} (ecraser)`,
-            description: `${playlists[userKey][name].length} pistes`,
-            value: `existing_${name}`,
-          })) : []),
-          { label: '➕ Nouvelle playlist', description: 'Creer une nouvelle playlist', value: 'new_playlist', emoji: '💾' },
-        )
-      );
-      const reply = await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setDescription(`💾 Sauvegarder **${queue.tracks.length}** piste${queue.tracks.length > 1 ? 's' : ''} dans une playlist :\n\nChoisis une playlist existante ou cree-en une nouvelle.`)], components: [row], ephemeral: true, fetchReply: true });
-
-      const coll = reply.createMessageComponentCollector({ time: 30000 });
-      coll.on('collect', async i => {
-        if (!i.isStringSelectMenu()) return;
-        const val = i.values[0];
-        if (val === 'new_playlist') {
-          const name = `playlist-${Date.now().toString(36)}`;
-          playlists[userKey][name] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
-          savePlaylists(playlists);
-          coll.stop();
-          return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`💾 Playlist **${name}** creee avec **${queue.tracks.length}** pistes.\n\nRenomme-la avec \`/manage playlist delete\` + \`/manage playlist save\`.`)], components: [] });
-        }
-        const name = val.replace('existing_', '');
-        playlists[userKey][name] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
-        savePlaylists(playlists);
-        coll.stop();
-        i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`💾 Playlist **${name}** mise a jour avec **${queue.tracks.length}** pistes.`)], components: [] });
-      });
-      coll.on('end', (_, r) => { if (r === 'time') reply.edit({ components: [] }).catch(() => {}); });
-    }
-
-    else if (action === 'music_pl_load') {
-      const playlists = loadPlaylists();
-      const userKey = interaction.user.id;
-      const userPl = playlists[userKey] || {};
-      const names = Object.keys(userPl);
-
-      if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('📂 Tu n\'as aucune playlist sauvegardee.\nUtilise le bouton **💾 Sauvegarder** pour en creer une.')], ephemeral: true });
-
-      const row = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder().setCustomId('pl_load_select').setPlaceholder('Choisis une playlist...').addOptions(
-          ...names.slice(0, 25).map(name => ({
-            label: name,
-            description: `${userPl[name].length} pistes`,
-            value: name,
-            emoji: '📁',
-          }))
-        )
-      );
-      const reply = await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setDescription('📂 Quelle playlist veux-tu charger ?')], components: [row], ephemeral: true, fetchReply: true });
-
-      const coll = reply.createMessageComponentCollector({ time: 30000 });
-      coll.on('collect', async i => {
-        if (!i.isStringSelectMenu()) return;
-        const name = i.values[0];
-        const tracks = userPl[name].map(t => ({ ...t, requestedBy: interaction.user.tag }));
-        queue.tracks.push(...tracks);
-        queue.textChannel = interaction.channel;
-
-        if (!queue.connection) {
-          const vc = interaction.member.voice.channel;
-          if (!vc) { coll.stop(); return i.update({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Tu dois etre dans un salon vocal.')], components: [] }); }
-          setupConnection(queue, vc, interaction.guild);
-          playNext(interaction.guild.id);
-        }
-
-        coll.stop();
-        const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-        i.update({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`📂 **${name}** chargee — **${tracks.length}** pistes ajoutees (\`${formatDuration(totalDur)}\`)`)], components: [] });
-      });
-      coll.on('end', (_, r) => { if (r === 'time') reply.edit({ components: [] }).catch(() => {}); });
-    }
-
-    else if (action === 'music_pl_list') {
-      const playlists = loadPlaylists();
-      const userPl = playlists[interaction.user.id] || {};
-      const names = Object.keys(userPl);
-
-      if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('Tu n\'as aucune playlist.')], ephemeral: true });
-
-      const desc = names.map(name => {
-        const tracks = userPl[name];
-        const dur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-        return `> 📁  **${name}** — ${tracks.length} piste${tracks.length > 1 ? 's' : ''} (\`${formatDuration(dur)}\`)`;
-      }).join('\n');
-
-      await interaction.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(COLORS.MUSIC)
-          .setAuthor({ name: `Playlists de ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
-          .setDescription(desc)
-          .setFooter({ text: `${names.length}/25 playlists  ┃  ${BOT_FOOTER.text}` })
-          .setTimestamp()],
-        ephemeral: true,
-      });
-    }
-
-    else if (action === 'music_tierlist') {
-      await interaction.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(0x9b59b6)
-          .setTitle('🎯 Créer une Tierlist')
-          .setDescription('Choisis une catégorie, puis un thème.\nChaque item s\'affiche un à un — clique sur **S / A / B / C / D** pour le placer !')
-          .setFooter({ text: BOT_FOOTER.text })],
-        components: [buildTierlistCategoryRow()],
-        ephemeral: true,
-      });
-    }
-
-    return;
-  }
-
-  // ── Tierlist: sélection catégorie ──────────────────────────────────
-  if (interaction.isStringSelectMenu() && interaction.customId === 'tl_cat') {
-    const catIndex = parseInt(interaction.values[0]);
-    const cat = CATEGORIES[catIndex];
-    const row = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId('tl_theme')
-        .setPlaceholder('Choisir un thème...')
-        .addOptions(cat.themes.map((theme, i) => ({
-          label: theme[0].length > 100 ? theme[0].slice(0, 97) + '...' : theme[0],
-          value: `${catIndex}_${i}`,
-        })))
-    );
-    await interaction.update({
-      embeds: [new EmbedBuilder()
-        .setColor(0x9b59b6)
-        .setTitle(`🎯 ${cat.emoji} ${cat.name}`)
-        .setDescription('Choisis un thème :')
-        .setFooter({ text: BOT_FOOTER.text })],
-      components: [row],
-    });
-    return;
-  }
-
-  // ── Tierlist: sélection thème ──────────────────────────────────────
-  if (interaction.isStringSelectMenu() && interaction.customId === 'tl_theme') {
-    const [catIndex, themeIndex] = interaction.values[0].split('_').map(Number);
-    const [themeName, items] = CATEGORIES[catIndex].themes[themeIndex];
-    const shuffled = [...items].sort(() => Math.random() - 0.5);
-    tierlistSessions.set(interaction.user.id, {
-      themeName,
-      items: shuffled,
-      index: 0,
-      placements: { S: [], A: [], B: [], C: [], D: [] },
-      skipped: [],
-      createdAt: Date.now(),
-    });
-    await interaction.update(buildItemPlacementContent(tierlistSessions.get(interaction.user.id)));
-    return;
-  }
-
-  // ── Tierlist: placement des items ──────────────────────────────────
-  if (interaction.isButton() && (interaction.customId.startsWith('tl_place_') || interaction.customId === 'tl_skip' || interaction.customId === 'tl_cancel')) {
-    const session = tierlistSessions.get(interaction.user.id);
-    if (!session) {
-      return interaction.reply({ content: 'Session expirée. Lance `/tierlist` à nouveau.', ephemeral: true });
-    }
-
-    if (interaction.customId === 'tl_cancel') {
-      tierlistSessions.delete(interaction.user.id);
-      return interaction.update({
-        embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('Tierlist annulée.')],
-        components: [],
-      });
-    }
-
-    const currentItem = session.items[session.index];
-    if (interaction.customId === 'tl_skip') {
-      session.skipped.push(currentItem);
-    } else {
-      const tier = interaction.customId.replace('tl_place_', '');
-      session.placements[tier].push(currentItem);
-    }
-    session.index++;
-
-    if (session.index < session.items.length) {
-      await interaction.update(buildItemPlacementContent(session));
-    } else {
-      tierlistSessions.delete(interaction.user.id);
-      const tierLines = Object.entries(session.placements)
-        .filter(([, arr]) => arr.length)
-        .map(([tier, arr]) => `**${TL_LABELS[tier]}** ┃ ${arr.join(' • ')}`)
-        .join('\n');
-      const skippedLine = session.skipped.length
-        ? `\n**⬜ Non classés** ┃ ${session.skipped.join(' • ')}`
-        : '';
-      const resultEmbed = new EmbedBuilder()
-        .setColor(0x9b59b6)
-        .setTitle(`🎯 Tierlist — ${session.themeName}`)
-        .setDescription(`\n${tierLines}${skippedLine}\n`)
-        .setAuthor({ name: interaction.user.tag, iconURL: interaction.user.displayAvatarURL() })
-        .setFooter({ text: BOT_FOOTER.text })
-        .setTimestamp();
-
-      await interaction.update({
-        embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription('✅ Tierlist terminée ! Résultat posté ci-dessous.')],
-        components: [],
-      });
-      await interaction.followUp({ embeds: [resultEmbed], ephemeral: false });
-    }
     return;
   }
 
@@ -1326,69 +1044,7 @@ client.on('interactionCreate', async (interaction) => {
           '**Boutons du lecteur (sur le panel de musique)**',
           '`⏮️` Precedent  `⏪` -10s  `⏸️` Pause  `⏩` +10s  `⏭️` Suivant',
           '`⏹️` Stop  `🔁` Boucle  `🔀` Shuffle  `🔄` Replay  `🟢` 24/7',
-          '`🔉` Vol-  `🔊` Vol+  `💾` Sauver  `📂` Charger  `📋` Playlists',
-          '`🎯` Tierlist interactive',
-        ].join('\n'),
-        fields: [],
-      },
-      playlists: {
-        title: '💾  Playlists personnelles',
-        color: COLORS.PLAY,
-        description: [
-          '> Sauvegarde et chargement de tes propres playlists',
-          '',
-          '▸ `/playlist-save <nom>` — Sauvegarder la file actuelle',
-          '▸ `/playlist-load <nom>` — Charger une playlist sauvegardee',
-          '▸ `/playlist-list` — Voir toutes tes playlists',
-          '▸ `/playlist-view <nom>` — Voir le contenu d\'une playlist',
-          '▸ `/playlist-delete <nom>` — Supprimer une playlist',
-          '▸ `/playlist-rename <ancien> <nouveau>` — Renommer une playlist',
-          '',
-          '> Accessible aussi via les boutons 💾 📂 📋 du lecteur',
-        ].join('\n'),
-        fields: [],
-      },
-      tierlist: {
-        title: '🎯  Tierlist',
-        color: 0x9b59b6,
-        description: [
-          '> Cree ta propre tierlist en classant des items un par un',
-          '',
-          '▸ `/tierlist` — Lancer une tierlist interactive',
-          '',
-          '**Deroulement :**',
-          '`1.` Choisis une **categorie** (Anime, Gaming, Musique, Films...)',
-          '`2.` Choisis un **theme** (ex: Personnages de Naruto)',
-          '`3.` Chaque item s\'affiche — clique **S / A / B / C / D** pour le placer',
-          '`4.` Le resultat final est poste dans le salon pour tout le monde',
-          '',
-          '> Bouton `🎯` dispo directement sur le panel de musique',
-        ].join('\n'),
-        fields: [],
-      },
-      giveaway: {
-        title: '🎉  Giveaway',
-        color: 0xf1c40f,
-        description: [
-          '> Organiser des tirages au sort sur le serveur',
-          '',
-          '▸ `/giveaway <prix> <duree> [gagnants]` — Lancer un giveaway',
-          '   ↳ Duree : `10m`, `2h`, `1d`, `1w` etc.',
-          '   ↳ Les membres reagissent avec 🎉 pour participer',
-          '▸ `/giveaway-reroll <id>` — Retirer un nouveau gagnant',
-          '   ↳ L\'ID est celui du message du giveaway',
-        ].join('\n'),
-        fields: [],
-      },
-      info: {
-        title: '📊  Informations',
-        color: 0x3498db,
-        description: [
-          '> Infos sur les membres et le serveur',
-          '',
-          '▸ `/userinfo [membre]` — ID, dates, pseudo, roles d\'un membre',
-          '▸ `/serverinfo` — Proprietaire, membres, roles, salons, boosts',
-          '▸ `/help` — Ce menu d\'aide',
+          '`🔉` Vol-  `🔊` Vol+',
         ].join('\n'),
         fields: [],
       },
@@ -1402,10 +1058,6 @@ client.on('interactionCreate', async (interaction) => {
         { label: 'Musique', description: 'Play, search, playlist, replay...', value: 'music', emoji: '🎵' },
         { label: 'File d\'attente', description: 'Queue, skip, shuffle, move...', value: 'queue', emoji: '📋' },
         { label: 'Controles', description: 'Volume, boucle, 24/7, boutons...', value: 'controls', emoji: '🎛️' },
-        { label: 'Playlists', description: 'Sauvegarder et charger tes playlists', value: 'playlists', emoji: '💾' },
-        { label: 'Tierlist', description: 'Classer des items en S/A/B/C/D', value: 'tierlist', emoji: '🎯' },
-        { label: 'Giveaway', description: 'Creer et gerer des giveaways', value: 'giveaway', emoji: '🎉' },
-        { label: 'Informations', description: 'Userinfo, serverinfo...', value: 'info', emoji: '📊' },
       );
 
     const page = HELP_PAGES.home;
@@ -1441,55 +1093,6 @@ client.on('interactionCreate', async (interaction) => {
         await reply.edit({ components: [] });
       } catch {}
     });
-  }
-
-  else if (commandName === 'userinfo') {
-    const user = interaction.options.getUser('membre') || interaction.user;
-    const target = await guild.members.fetch(user.id).catch(() => null);
-
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.INFO)
-      .setTitle(`Infos — ${user.tag}`)
-      .setThumbnail(user.displayAvatarURL({ size: 256 }))
-      .addFields(
-        { name: 'ID', value: user.id, inline: true },
-        { name: 'Compte cree le', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
-      );
-
-    if (target) {
-      embed.addFields(
-        { name: 'A rejoint le', value: `<t:${Math.floor(target.joinedTimestamp / 1000)}:D>`, inline: true },
-        { name: 'Pseudo', value: target.nickname || 'Aucun', inline: true },
-        { name: `Roles (${target.roles.cache.size - 1})`, value: target.roles.cache.filter(r => r.id !== guild.id).map(r => `${r}`).join(', ') || 'Aucun' },
-      );
-      if (target.communicationDisabledUntilTimestamp) {
-        embed.addFields({ name: 'Mute jusqu\'au', value: `<t:${Math.floor(target.communicationDisabledUntilTimestamp / 1000)}:f>` });
-      }
-    }
-
-    embed.addFields({ name: 'Bot', value: user.bot ? 'Oui' : 'Non', inline: true });
-    await interaction.reply({ embeds: [embed] });
-  }
-
-  else if (commandName === 'serverinfo') {
-    const owner = await guild.fetchOwner();
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.INFO)
-      .setTitle(guild.name)
-      .setThumbnail(guild.iconURL({ size: 256 }))
-      .addFields(
-        { name: 'ID', value: guild.id, inline: true },
-        { name: 'Proprietaire', value: `${owner.user.tag}`, inline: true },
-        { name: 'Cree le', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true },
-        { name: 'Membres', value: `${guild.memberCount}`, inline: true },
-        { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
-        { name: 'Salons', value: `${guild.channels.cache.size}`, inline: true },
-        { name: 'Boosts', value: `${guild.premiumSubscriptionCount || 0} (Niveau ${guild.premiumTier})`, inline: true },
-        { name: 'Emojis', value: `${guild.emojis.cache.size}`, inline: true },
-        { name: 'Verification', value: `${guild.verificationLevel}`, inline: true },
-      );
-
-    await interaction.reply({ embeds: [embed] });
   }
 
   else if (commandName === 'debug') {
@@ -1603,154 +1206,6 @@ client.on('interactionCreate', async (interaction) => {
       console.error(err);
       await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Erreur lors de la recherche.')] });
     }
-  }
-
-  // ─── Playlists perso ─────────────────────────────────────────────────
-
-  else if (commandName === 'playlist-save') {
-    const nom = interaction.options.getString('nom').toLowerCase().replace(/[^a-z0-9\-_]/g, '');
-    if (!nom) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Nom invalide (lettres, chiffres, tirets).')], ephemeral: true });
-    if (!queue.tracks.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('La file d\'attente est vide.')], ephemeral: true });
-    const playlists = loadPlaylists();
-    if (!playlists[interaction.user.id]) playlists[interaction.user.id] = {};
-    if (Object.keys(playlists[interaction.user.id]).length >= 25 && !playlists[interaction.user.id][nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Maximum 25 playlists.')], ephemeral: true });
-    playlists[interaction.user.id][nom] = queue.tracks.map(t => ({ url: t.url, title: t.title, duration: t.duration, durationSec: t.durationSec, thumbnail: t.thumbnail }));
-    savePlaylists(playlists);
-    const totalDur = queue.tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setTitle('💾 Playlist sauvegardee').setDescription(`> 📁  **${nom}**\n> 🎵  **${queue.tracks.length}** pistes\n> 🕐  Duree : **${formatDuration(totalDur)}**`).setFooter(BOT_FOOTER).setTimestamp()] });
-  }
-
-  else if (commandName === 'playlist-load') {
-    if (!voiceChannel) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Tu dois etre dans un salon vocal.')], ephemeral: true });
-    const nom = interaction.options.getString('nom').toLowerCase();
-    const playlists = loadPlaylists();
-    const userPl = playlists[interaction.user.id] || {};
-    if (!userPl[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable. Utilise \`/playlist-list\`.`)], ephemeral: true });
-    const tracks = userPl[nom].map(t => ({ ...t, requestedBy: member.user.tag }));
-    queue.tracks.push(...tracks);
-    queue.textChannel = channel;
-    if (!queue.connection) { setupConnection(queue, voiceChannel, guild); playNext(guild.id); }
-    const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setTitle('📂 Playlist chargee').setDescription(`> 📁  **${nom}**\n> 🎵  **${tracks.length}** pistes ajoutees\n> 🕐  Duree : **${formatDuration(totalDur)}**`).setFooter(BOT_FOOTER).setTimestamp()] });
-  }
-
-  else if (commandName === 'playlist-list') {
-    const playlists = loadPlaylists();
-    const userPl = playlists[interaction.user.id] || {};
-    const names = Object.keys(userPl);
-    if (!names.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.WARN).setDescription('Tu n\'as aucune playlist.\nUtilise `/playlist-save <nom>` pendant qu\'une file joue.')], ephemeral: true });
-    const desc = names.map(name => {
-      const tracks = userPl[name];
-      const dur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-      return `> 📁  **${name}** — ${tracks.length} piste${tracks.length > 1 ? 's' : ''} (\`${formatDuration(dur)}\`)`;
-    }).join('\n');
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setAuthor({ name: `Playlists de ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() }).setDescription(desc).setFooter({ text: `${names.length}/25 playlists  ┃  ${BOT_FOOTER.text}` }).setTimestamp()] });
-  }
-
-  else if (commandName === 'playlist-view') {
-    const nom = interaction.options.getString('nom').toLowerCase();
-    const playlists = loadPlaylists();
-    const userPl = playlists[interaction.user.id] || {};
-    if (!userPl[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable.`)], ephemeral: true });
-    const tracks = userPl[nom];
-    const totalDur = tracks.reduce((a, t) => a + (t.durationSec || 0), 0);
-    const list = tracks.slice(0, 15).map((t, i) => `\`${i + 1}.\` ${t.title} — \`${t.duration}\``).join('\n');
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.MUSIC).setTitle(`📁 ${nom}`).setDescription(list + (tracks.length > 15 ? `\n*...et ${tracks.length - 15} autres*` : '')).setFooter({ text: `${tracks.length} pistes  ┃  ${formatDuration(totalDur)}  ┃  ${BOT_FOOTER.text}` }).setTimestamp()] });
-  }
-
-  else if (commandName === 'playlist-delete') {
-    const nom = interaction.options.getString('nom').toLowerCase();
-    const playlists = loadPlaylists();
-    if (!playlists[interaction.user.id]?.[nom]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${nom}** introuvable.`)], ephemeral: true });
-    delete playlists[interaction.user.id][nom];
-    savePlaylists(playlists);
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`🗑️ Playlist **${nom}** supprimee.`).setFooter(BOT_FOOTER).setTimestamp()] });
-  }
-
-  else if (commandName === 'playlist-rename') {
-    const ancien = interaction.options.getString('ancien').toLowerCase();
-    const nouveau = interaction.options.getString('nouveau').toLowerCase().replace(/[^a-z0-9\-_]/g, '');
-    if (!nouveau) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Nouveau nom invalide.')], ephemeral: true });
-    const playlists = loadPlaylists();
-    const userPl = playlists[interaction.user.id] || {};
-    if (!userPl[ancien]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Playlist **${ancien}** introuvable.`)], ephemeral: true });
-    if (userPl[nouveau]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription(`Le nom **${nouveau}** est deja pris.`)], ephemeral: true });
-    userPl[nouveau] = userPl[ancien];
-    delete userPl[ancien];
-    savePlaylists(playlists);
-    await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.PLAY).setDescription(`📁 Playlist **${ancien}** renommee en **${nouveau}**.`).setFooter(BOT_FOOTER).setTimestamp()] });
-  }
-
-  // ─── Giveaway ───────────────────────────────────────────────────────
-
-  else if (commandName === 'giveaway') {
-    const prix = interaction.options.getString('prix');
-    const dureeStr = interaction.options.getString('duree');
-    const gagnants = interaction.options.getInteger('gagnants') || 1;
-    const ms = parseDuration(dureeStr);
-    if (!ms || ms > 30 * 86400000) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Duree invalide. Max 30 jours.')], ephemeral: true });
-
-    const endTimestamp = Math.floor((Date.now() + ms) / 1000);
-    const embed = new EmbedBuilder()
-      .setColor(0xf1c40f)
-      .setTitle('🎉 GIVEAWAY 🎉')
-      .setDescription(`**${prix}**\n\nReagis avec 🎉 pour participer !\n\n⏰ Fin : <t:${endTimestamp}:R>\n👥 Gagnant(s) : **${gagnants}**`)
-      .setFooter({ text: `Par ${member.user.tag}` })
-      .setTimestamp(Date.now() + ms);
-
-    await interaction.reply({ content: 'Giveaway lance !', ephemeral: true });
-    const gMsg = await channel.send({ embeds: [embed] });
-    await gMsg.react('🎉');
-
-    setTimeout(async () => {
-      try {
-        const fetched = await gMsg.fetch();
-        const reaction = fetched.reactions.cache.get('🎉');
-        const users = await reaction.users.fetch();
-        const participants = users.filter(u => !u.bot);
-        if (!participants.size) {
-          return gMsg.edit({ embeds: [embed.setDescription(`**${prix}**\n\nAucun participant.`).setColor(0x95a5a6)] });
-        }
-        const winners = participants.random(Math.min(gagnants, participants.size));
-        const winnerList = Array.isArray(winners) ? winners.map(w => `${w}`).join(', ') : `${winners}`;
-        const endEmbed = new EmbedBuilder()
-          .setColor(0x2ecc71)
-          .setTitle('🎉 GIVEAWAY TERMINE 🎉')
-          .setDescription(`**${prix}**\n\n🏆 Gagnant(s) : ${winnerList}`)
-          .setFooter({ text: `ID: ${gMsg.id}` })
-          .setTimestamp();
-        await gMsg.edit({ embeds: [endEmbed] });
-        channel.send(`Felicitations ${winnerList} ! Vous avez gagne **${prix}** ! 🎉`);
-      } catch (err) { console.error('Giveaway error:', err); }
-    }, ms);
-  }
-
-  else if (commandName === 'giveaway-reroll') {
-    const msgId = interaction.options.getString('id');
-    try {
-      const gMsg = await channel.messages.fetch(msgId);
-      const reaction = gMsg.reactions.cache.get('🎉');
-      if (!reaction) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Ce message n\'est pas un giveaway.')], ephemeral: true });
-      const users = await reaction.users.fetch();
-      const participants = users.filter(u => !u.bot);
-      if (!participants.size) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Aucun participant.')], ephemeral: true });
-      const winner = participants.random();
-      await interaction.reply({ embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription(`🎉 Nouveau gagnant : ${winner} !`)] });
-    } catch {
-      await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Message introuvable. Verifie l\'ID.')], ephemeral: true });
-    }
-  }
-
-  else if (commandName === 'tierlist') {
-    await interaction.reply({
-      embeds: [new EmbedBuilder()
-        .setColor(0x9b59b6)
-        .setTitle('🎯 Créer une Tierlist')
-        .setDescription('Choisis une catégorie, puis un thème.\nChaque item s\'affiche un à un — clique sur **S / A / B / C / D** pour le placer !')
-        .setFooter({ text: BOT_FOOTER.text })],
-      components: [buildTierlistCategoryRow()],
-      ephemeral: true,
-    });
   }
 
 });

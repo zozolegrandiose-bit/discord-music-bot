@@ -211,7 +211,11 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const YTDLP_BASE_ARGS = ['--ffmpeg-location', path.dirname(FFMPEG_PATH), '--no-warnings'];
+const YTDLP_BASE_ARGS = [
+  '--ffmpeg-location', path.dirname(FFMPEG_PATH),
+  '--no-warnings',
+  '--extractor-args', 'youtube:player_client=ios,mweb,web',
+];
 
 function ytdlpExec(args) {
   const fullArgs = [...YTDLP_BASE_ARGS, ...args];
@@ -248,16 +252,17 @@ function streamAudio(url) {
   const proc = spawn(YTDLP, [
     ...YTDLP_BASE_ARGS,
     url,
-    '-f', 'ba[ext=webm]/ba/b',
+    '-f', 'bestaudio/best',
     '-o', '-',
     '--no-playlist',
-    '--quiet',
-  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stderr.on('data', d => console.error('[yt-dlp stream]', d.toString().trim()));
+  proc.on('error', err => console.error('[yt-dlp spawn]', err));
   return proc.stdout;
 }
 
 async function streamAudioAt(url, startSec) {
-  const raw = await ytdlpExec(['--get-url', '-f', 'ba[ext=webm]/ba/b', '--no-playlist', url]);
+  const raw = await ytdlpExec(['--get-url', '-f', 'bestaudio/best', '--no-playlist', url]);
   const directUrl = raw.split('\n')[0];
   const proc = spawn(FFMPEG_PATH, [
     '-ss', `${Math.floor(startSec)}`,

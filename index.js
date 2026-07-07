@@ -260,7 +260,7 @@ function destroyQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return;
   clearTimeout(queue.idleTimer);
-  if (queue.voiceChannel) queue.voiceChannel.setStatus('').catch(() => {});
+  if (queue.voiceChannel) queue.voiceChannel.setStatus?.('').catch(() => {});
   queue.player?.stop(true);
   queue.connection?.destroy();
   queues.delete(guildId);
@@ -384,7 +384,7 @@ async function playNext(guildId) {
       } catch {}
       queue.nowPlayingMsg = null;
     }
-    if (queue.voiceChannel) queue.voiceChannel.setStatus('').catch(() => {});
+    if (queue.voiceChannel) queue.voiceChannel.setStatus?.('').catch(() => {});
     startIdleTimer(guildId);
     return;
   }
@@ -405,7 +405,7 @@ async function playNext(guildId) {
     queue.pausedAt = 0;
     queue.totalPausedMs = 0;
 
-    if (queue.voiceChannel) queue.voiceChannel.setStatus(`🎵 ${track.title}`).catch(() => {});
+    if (queue.voiceChannel) queue.voiceChannel.setStatus?.(`🎵 ${track.title}`).catch(() => {});
 
     const embed = buildNowPlayingEmbed(track, queue);
     const rows = buildPlayerRows(queue);
@@ -1552,7 +1552,7 @@ client.on('interactionCreate', async (interaction) => {
   else if (commandName === 'forcestop') {
     const DEBUG_USERS = ['576468004863475746', '452381598663573506'];
     if (!DEBUG_USERS.includes(interaction.user.id)) return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.STOP).setDescription('Tu n\'as pas acces a cette commande.')], ephemeral: true });
-    if (queue.voiceChannel) queue.voiceChannel.setStatus('').catch(() => {});
+    if (queue.voiceChannel) queue.voiceChannel.setStatus?.('').catch(() => {});
     queue.tracks = [];
     queue.history = [];
     queue.player?.stop(true);

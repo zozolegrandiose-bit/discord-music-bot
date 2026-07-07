@@ -4,7 +4,7 @@
   "description": "Bot Discord musique avec commandes slash",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node start.js",
     "deploy": "node deploy-commands.js",
     "build": "node setup.js"
   },

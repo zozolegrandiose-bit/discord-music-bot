@@ -1,0 +1,814 @@
+<title>Comptalys — Logiciel de comptabilité</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --blue:#2a78d6; --aqua:#1baf7a; --yellow:#eda100; --violet:#4a3aa7; --orange:#eb6834;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
+  --bg:#f4f6fb; --surface:#ffffff; --surface-2:#fbfcfe; --sidebar:#0f2138;
+  --ink:#132132; --ink-2:#5b6472; --muted:#8a93a3; --line:#e6eaf1; --line-strong:#d4dae4;
+  --brand:#2a78d6; --brand-ink:#1c5cab; --radius:14px; --radius-s:9px;
+  --shadow:0 1px 2px rgba(16,32,60,.06),0 6px 20px rgba(16,32,60,.06);
+  --shadow-lg:0 12px 40px rgba(16,32,60,.16);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+:root[data-theme="dark"]{
+  --bg:#0c1017; --surface:#141a24; --surface-2:#0f151d; --sidebar:#0a0f18;
+  --ink:#eef2f8; --ink-2:#aab4c4; --muted:#7b8698; --line:#232c3a;
+  --line-strong:#313c4d; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 26px rgba(0,0,0,.35);
+  --shadow-lg:0 16px 50px rgba(0,0,0,.55);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14px;
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:20px;border:3px solid transparent;background-clip:content-box}
+
+/* ---------------- Layout ---------------- */
+.app{display:grid;grid-template-columns:236px 1fr;height:100vh}
+.sidebar{background:var(--sidebar);color:#c9d4e5;display:flex;flex-direction:column;padding:18px 14px;gap:4px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+.brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2a78d6,#1baf7a);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;box-shadow:0 4px 12px rgba(42,120,214,.4)}
+.brand .name{font-weight:750;font-size:16px;color:#fff;letter-spacing:.2px}
+.brand .name small{display:block;font-weight:500;font-size:10.5px;color:#8595ad;letter-spacing:.3px}
+.nav-sec{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:#5f6f88;padding:14px 10px 6px;font-weight:700}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;color:#b6c3d7;
+  font-weight:550;font-size:13.5px;border:none;background:none;width:100%;text-align:left;transition:.15s}
+.nav-item svg{width:18px;height:18px;flex:none;opacity:.85}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:linear-gradient(90deg,rgba(42,120,214,.28),rgba(42,120,214,.08));color:#fff;
+  box-shadow:inset 3px 0 0 var(--blue)}
+.nav-item .badge{margin-left:auto;background:var(--crit);color:#fff;font-size:10.5px;font-weight:700;
+  padding:1px 7px;border-radius:20px}
+.sidebar .spacer{flex:1}
+.side-foot{border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:8px}
+.user-chip{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px}
+.user-chip .ava{width:34px;height:34px;border-radius:50%;background:#2a78d6;display:grid;place-items:center;color:#fff;font-weight:700}
+.user-chip .who{font-size:12.5px;color:#e7eef8;font-weight:600;line-height:1.25}
+.user-chip .who small{color:#8595ad;font-weight:500}
+
+.main{display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:62px;flex:none;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:16px;padding:0 26px}
+.topbar h1{font-size:19px;margin:0;font-weight:720;letter-spacing:-.2px}
+.topbar .sub{color:var(--ink-2);font-size:12.5px;margin-top:1px}
+.search{margin-left:auto;position:relative;display:flex;align-items:center}
+.search svg{position:absolute;left:11px;width:16px;height:16px;color:var(--muted)}
+.search input{border:1px solid var(--line-strong);background:var(--surface-2);border-radius:10px;
+  padding:9px 12px 9px 34px;width:230px;font-size:13px;color:var(--ink);outline:none}
+.search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(42,120,214,.14)}
+.icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2);
+  display:grid;place-items:center;color:var(--ink-2)}
+.icon-btn:hover{color:var(--ink);border-color:var(--brand)}
+.icon-btn svg{width:18px;height:18px}
+.content{overflow-y:auto;padding:24px 26px 60px}
+
+/* ---------------- Bits ---------------- */
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-strong);background:var(--surface);
+  color:var(--ink);padding:9px 15px;border-radius:10px;font-weight:600;font-size:13px;transition:.15s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 3px 10px rgba(42,120,214,.3)}
+.btn-primary:hover{background:var(--brand-ink);border-color:var(--brand-ink);color:#fff;filter:none}
+.btn-ghost{border-color:transparent;background:transparent}
+.btn-danger:hover{border-color:var(--crit);color:var(--crit)}
+.row{display:flex;align-items:center;gap:12px}
+.grow{flex:1}
+
+.grid-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.kpi{padding:18px 18px 16px;position:relative;overflow:hidden}
+.kpi .k-top{display:flex;align-items:center;justify-content:space-between}
+.kpi .k-ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center}
+.kpi .k-ico svg{width:19px;height:19px}
+.kpi .k-label{color:var(--ink-2);font-size:12.5px;font-weight:600;margin:14px 0 4px}
+.kpi .k-val{font-size:26px;font-weight:770;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.kpi .k-delta{font-size:12px;font-weight:600;margin-top:6px;display:inline-flex;align-items:center;gap:4px}
+.up{color:var(--good)} .down{color:var(--crit)}
+.tint-blue{background:rgba(42,120,214,.12);color:var(--blue)}
+.tint-aqua{background:rgba(27,175,122,.14);color:var(--aqua)}
+.tint-yellow{background:rgba(237,161,0,.15);color:#b57d00}
+.tint-violet{background:rgba(74,58,167,.13);color:var(--violet)}
+:root[data-theme="dark"] .tint-yellow{color:var(--yellow)}
+
+.grid-2{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:20px}
+.grid-2b{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.panel-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 4px}
+.panel-h h3{margin:0;font-size:15px;font-weight:700}
+.panel-h .hint{color:var(--muted);font-size:12px}
+.panel-b{padding:8px 18px 18px}
+
+/* ---------------- Table ---------------- */
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+  font-weight:700;padding:10px 14px;border-bottom:1px solid var(--line)}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.mono{font-variant-numeric:tabular-nums}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.tag::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-paid{background:rgba(12,163,12,.13);color:#0a8a0a}
+.t-wait{background:rgba(250,178,25,.16);color:#a9760a}
+.t-late{background:rgba(208,59,59,.13);color:var(--crit)}
+.t-draft{background:rgba(138,147,163,.16);color:var(--ink-2)}
+:root[data-theme="dark"] .t-paid{color:#3fd23f}
+:root[data-theme="dark"] .t-wait{color:var(--yellow)}
+.cli{display:flex;align-items:center;gap:10px}
+.cli .ava{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:none}
+.rowbtns{display:flex;gap:6px;justify-content:flex-end}
+.mini{width:30px;height:30px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);
+  display:grid;place-items:center;color:var(--ink-2)}
+.mini:hover{color:var(--brand);border-color:var(--brand)}
+.mini svg{width:15px;height:15px}
+.mini.del:hover{color:var(--crit);border-color:var(--crit)}
+
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:3px}
+.seg button{border:none;background:none;padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.seg button.on{background:var(--brand);color:#fff}
+.field{position:relative}
+.field select,.field input{border:1px solid var(--line-strong);background:var(--surface);border-radius:9px;
+  padding:9px 12px;font-size:13px;color:var(--ink);outline:none;font-family:inherit}
+.field select:focus,.field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(42,120,214,.13)}
+
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty svg{width:46px;height:46px;opacity:.5;margin-bottom:10px}
+
+/* ---------------- Charts ---------------- */
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;padding:2px 18px 14px}
+.leg{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);font-weight:550}
+.leg i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.tooltip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;padding:8px 11px;border-radius:9px;
+  font-size:12px;font-weight:550;box-shadow:var(--shadow-lg);opacity:0;transform:translateY(4px);transition:.12s;z-index:80;white-space:nowrap}
+:root[data-theme="dark"] .tooltip{background:#000;border:1px solid var(--line)}
+.tooltip b{font-weight:750}
+.bar-hit:hover rect.bar{filter:brightness(1.08)}
+.donut-seg{transition:.15s;cursor:pointer}
+.donut-seg:hover{opacity:.85}
+
+/* ---------------- Modal ---------------- */
+.overlay{position:fixed;inset:0;background:rgba(11,20,34,.5);backdrop-filter:blur(3px);display:none;
+  align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow-y:auto}
+.overlay.on{display:flex}
+.modal{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-lg);width:100%;max-width:640px;
+  border:1px solid var(--line);animation:pop .18s ease}
+.modal.wide{max-width:820px}
+@keyframes pop{from{transform:translateY(12px) scale(.98);opacity:0}}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--line)}
+.modal-h h2{margin:0;font-size:18px;font-weight:730}
+.modal-b{padding:22px 24px;max-height:66vh;overflow-y:auto}
+.modal-f{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-2);border-radius:0 0 18px 18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg.full{grid-column:1/-1}
+.fg label{font-size:12.5px;font-weight:650;color:var(--ink-2)}
+.fg input,.fg select,.fg textarea{border:1px solid var(--line-strong);background:var(--surface-2);border-radius:9px;
+  padding:10px 12px;font-size:13.5px;color:var(--ink);outline:none;font-family:inherit;width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(42,120,214,.13);background:var(--surface)}
+.lines-tbl th{padding:6px 8px}
+.lines-tbl td{padding:5px 8px;border:none}
+.lines-tbl input{padding:8px 9px}
+.line-total{font-variant-numeric:tabular-nums;font-weight:650;white-space:nowrap}
+.totbox{margin-top:14px;margin-left:auto;width:260px;font-size:13.5px}
+.totbox .tr{display:flex;justify-content:space-between;padding:6px 0;color:var(--ink-2)}
+.totbox .tr.grand{border-top:2px solid var(--line-strong);margin-top:6px;padding-top:11px;color:var(--ink);font-size:17px;font-weight:770}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+  padding:12px 20px;border-radius:11px;font-weight:600;font-size:13.5px;box-shadow:var(--shadow-lg);opacity:0;
+  transition:.25s;z-index:120;display:flex;align-items:center;gap:9px}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{width:18px;height:18px;color:var(--good)}
+
+/* invoice preview */
+.doc{background:#fff;color:#1a2333;border-radius:12px;padding:34px 38px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.doc-h{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px}
+.doc-h .logo{width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#2a78d6,#1baf7a);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;margin-bottom:8px}
+.doc-title{font-size:30px;font-weight:800;color:#132132;letter-spacing:-1px}
+.doc table{margin-top:8px}
+.doc thead th{color:#8a93a3;border-color:#e6eaf1}
+.doc tbody td{border-color:#eef1f6;color:#1a2333}
+@media (max-width:1080px){.grid-kpi{grid-template-columns:1fr 1fr}.grid-2{grid-template-columns:1fr}.app{grid-template-columns:70px 1fr}
+ .brand .name,.nav-item span,.nav-sec,.user-chip .who{display:none}.nav-item{justify-content:center}}
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">₵</div>
+      <div class="name">Comptalys<small>Édition Pro 2026</small></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="spacer"></div>
+    <div class="side-foot">
+      <div class="user-chip">
+        <div class="ava">MD</div>
+        <div class="who">Marie Dupont<br><small>Gérante</small></div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="page-title">Tableau de bord</h1>
+        <div class="sub" id="page-sub">Vue d'ensemble de votre activité</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+        <input id="globalSearch" placeholder="Rechercher…">
+      </div>
+      <button class="icon-btn" id="themeBtn" title="Thème clair / sombre">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <button class="btn btn-primary" id="quickNew">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+        Nouvelle facture
+      </button>
+    </header>
+    <main class="content" id="view"></main>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="tooltip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ ICONS ============================ */
+const I = {
+  dash:'<path d="M3 13h8V3H3zM13 21h8v-6h-8zM13 3v8h8V3zM3 21h8v-4H3z"/>',
+  invoice:'<path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 13h6M9 17h6M9 9h2"/>',
+  quote:'<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/>',
+  clients:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.5a3 3 0 0 1 0 5.6M21 20c0-2.6-1.6-4.8-3.8-5.6"/>',
+  expense:'<path d="M3 6h18v12H3z"/><path d="M3 10h18M7 15h4"/>',
+  report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 6.7 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 13.4H3a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 5 6.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10.6 3V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8z"/>',
+  cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  wallet:'<path d="M3 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11"/><circle cx="17" cy="13" r="1.3"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  download:'<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+};
+const svg=(p,w=2)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+/* ============================ STATE ============================ */
+const LS='comptalys_v1';
+const fmtE=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n||0);
+const fmtE2=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',minimumFractionDigits:2}).format(n||0);
+const fmtD=d=>new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const uid=p=>p+Math.random().toString(36).slice(2,8);
+const MONTHS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const PALETTE=['#2a78d6','#1baf7a','#eda100','#4a3aa7','#eb6834','#e87ba4'];
+
+let state=load();
+
+function seed(){
+  const clients=[
+    {id:'c1',name:'Boulangerie Lefèvre',contact:'Paul Lefèvre',email:'contact@boulangerie-lefevre.fr',siret:'812 456 789 00021',city:'Lyon',color:'#2a78d6'},
+    {id:'c2',name:'Studio Nova Design',contact:'Inès Fabre',email:'ines@studionova.fr',siret:'901 223 456 00018',city:'Paris',color:'#1baf7a'},
+    {id:'c3',name:'Menuiserie Bertrand',contact:'Marc Bertrand',email:'m.bertrand@menuiserie.fr',siret:'443 998 112 00033',city:'Nantes',color:'#eb6834'},
+    {id:'c4',name:'Cabinet Aurore',contact:'Sophie Aurore',email:'s.aurore@cabinet-aurore.fr',siret:'552 771 003 00012',city:'Bordeaux',color:'#4a3aa7'},
+    {id:'c5',name:'Garage Central Auto',contact:'Yanis Khaled',email:'contact@central-auto.fr',siret:'778 334 221 00045',city:'Marseille',color:'#eda100'},
+    {id:'c6',name:'Fleuriste Camélia',contact:'Camille Roy',email:'hello@camelia-fleurs.fr',siret:'660 112 889 00027',city:'Toulouse',color:'#e87ba4'},
+  ];
+  const now=new Date();
+  const dISO=(mOff,day)=>{const d=new Date(now.getFullYear(),now.getMonth()-mOff,day);return d.toISOString().slice(0,10)};
+  let n=2026001;
+  const inv=(cli,mOff,day,status,lines,vat=20)=>({id:uid('f'),number:'FAC-'+(n++),clientId:cli,date:dISO(mOff,day),
+    due:dISO(mOff-1,day),status,vat,lines});
+  const invoices=[
+    inv('c2',0,4,'en attente',[{desc:'Refonte identité visuelle',qty:1,unit:2400},{desc:'Charte graphique',qty:1,unit:900}]),
+    inv('c1',0,2,'payée',[{desc:'Site vitrine + menu en ligne',qty:1,unit:1800}]),
+    inv('c4',0,6,'en attente',[{desc:'Conseil juridique (forfait)',qty:1,unit:1500}]),
+    inv('c3',1,18,'en retard',[{desc:'Aménagement boutique — mobilier',qty:1,unit:5200},{desc:'Pose sur site',qty:2,unit:450}]),
+    inv('c5',1,9,'payée',[{desc:'Développement logiciel de caisse',qty:1,unit:3400}]),
+    inv('c6',1,22,'payée',[{desc:'Boutique en ligne + paiement',qty:1,unit:2100}]),
+    inv('c2',2,12,'payée',[{desc:'Campagne réseaux sociaux',qty:3,unit:600}]),
+    inv('c1',2,3,'payée',[{desc:'Maintenance annuelle',qty:1,unit:480}]),
+    inv('c4',3,15,'payée',[{desc:'Audit de conformité',qty:1,unit:2800}]),
+    inv('c3',3,7,'payée',[{desc:'Extension atelier — étude',qty:1,unit:1600}]),
+    inv('c5',4,20,'payée',[{desc:'Formation équipe (2 j.)',qty:2,unit:850}]),
+    inv('c6',5,11,'payée',[{desc:'Shooting produits saison',qty:1,unit:1200}]),
+    inv('c2',0,7,'brouillon',[{desc:'Landing page évènement',qty:1,unit:750}]),
+  ];
+  const exp=(mOff,day,cat,sup,ht,vat=20)=>({id:uid('d'),date:dISO(mOff,day),category:cat,supplier:sup,ht,vat});
+  const expenses=[
+    exp(0,3,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(0,5,'Logiciels & abonnements','Adobe / OVH',180),
+    exp(0,8,'Fournitures','Bureau Vallée',95),
+    exp(1,2,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(1,12,'Sous-traitance','Freelance Dev',1400),
+    exp(1,16,'Déplacements','SNCF / Total',320),
+    exp(2,2,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(2,19,'Marketing','Google Ads',450),
+    exp(3,2,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(3,14,'Matériel','LDLC Pro',890),
+    exp(4,2,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(5,2,'Loyer & charges','SCI Montparnasse',1200,0),
+    exp(5,9,'Logiciels & abonnements','Adobe / OVH',180),
+  ];
+  return{company:{name:'Atelier Créatif Dupont',siret:'840 221 556 00019',email:'contact@atelier-dupont.fr',
+    address:'14 rue des Lilas, 69003 Lyon',iban:'FR76 3000 4000 0100 0012 3456 789'},
+    clients,invoices,expenses,quotes:[
+      {id:'q1',number:'DEV-2026008',clientId:'c3',date:todayISO(),status:'envoyé',vat:20,lines:[{desc:'Réaménagement showroom',qty:1,unit:7800}]},
+      {id:'q2',number:'DEV-2026007',clientId:'c6',date:dISO(0,1),status:'accepté',vat:20,lines:[{desc:'Refonte boutique en ligne',qty:1,unit:3200}]},
+      {id:'q3',number:'DEV-2026006',clientId:'c5',date:dISO(1,25),status:'refusé',vat:20,lines:[{desc:'Application mobile',qty:1,unit:12000}]},
+    ]};
+  function dISO2(){}
+}
+function load(){try{const s=JSON.parse(localStorage.getItem(LS));if(s&&s.invoices)return s;}catch(e){}const s=seed();localStorage.setItem(LS,JSON.stringify(s));return s;}
+function save(){localStorage.setItem(LS,JSON.stringify(state));}
+
+/* ---- computed ---- */
+const lineHT=l=>l.qty*l.unit;
+const docHT=d=>d.lines.reduce((s,l)=>s+lineHT(l),0);
+const docTVA=d=>docHT(d)*(d.vat/100);
+const docTTC=d=>docHT(d)+docTVA(d);
+const client=id=>state.clients.find(c=>c.id===id)||{name:'—',color:'#8a93a3'};
+const initials=s=>s.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
+/* ============================ NAV ============================ */
+const PAGES=[
+  {id:'dashboard',label:'Tableau de bord',icon:'dash',sub:"Vue d'ensemble de votre activité",sec:'Pilotage'},
+  {id:'invoices',label:'Factures',icon:'invoice',sub:'Gérez et suivez vos factures',sec:'Ventes'},
+  {id:'quotes',label:'Devis',icon:'quote',sub:'Vos propositions commerciales',sec:'Ventes'},
+  {id:'clients',label:'Clients',icon:'clients',sub:'Votre portefeuille clients',sec:'Ventes'},
+  {id:'expenses',label:'Dépenses',icon:'expense',sub:'Charges et achats de l\'entreprise',sec:'Achats'},
+  {id:'reports',label:'Rapports',icon:'report',sub:'Analyses et déclarations',sec:'Analyse'},
+  {id:'settings',label:'Paramètres',icon:'settings',sub:'Configuration de l\'entreprise',sec:'Analyse'},
+];
+let current='dashboard';
+function buildNav(){
+  const nav=document.getElementById('nav');let html='';let lastSec='';
+  const late=state.invoices.filter(i=>i.status==='en retard').length;
+  PAGES.forEach(p=>{
+    if(p.sec!==lastSec){html+=`<div class="nav-sec"><span>${p.sec}</span></div>`;lastSec=p.sec;}
+    const badge=p.id==='invoices'&&late?`<span class="badge">${late}</span>`:'';
+    html+=`<button class="nav-item ${p.id===current?'active':''}" data-page="${p.id}">${svg(I[p.icon])}<span>${p.label}</span>${badge}</button>`;
+  });
+  nav.innerHTML=html;
+  nav.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+}
+function go(id){current=id;const p=PAGES.find(x=>x.id===id);
+  document.getElementById('page-title').textContent=p.label;
+  document.getElementById('page-sub').textContent=p.sub;
+  buildNav();VIEWS[id]();document.getElementById('view').scrollTop=0;}
+
+/* ============================ VIEWS ============================ */
+const view=()=>document.getElementById('view');
+const VIEWS={};
+
+VIEWS.dashboard=function(){
+  const paid=state.invoices.filter(i=>i.status==='payée');
+  const wait=state.invoices.filter(i=>i.status==='en attente'||i.status==='en retard');
+  const caEncaisse=paid.reduce((s,i)=>s+docTTC(i),0);
+  const enAttente=wait.reduce((s,i)=>s+docTTC(i),0);
+  const depTTC=state.expenses.reduce((s,e)=>s+e.ht*(1+e.vat/100),0);
+  const treso=caEncaisse-depTTC;
+  const tvaCol=paid.reduce((s,i)=>s+docTVA(i),0);
+  const tvaDed=state.expenses.reduce((s,e)=>s+e.ht*(e.vat/100),0);
+
+  const kpis=[
+    {label:'CA encaissé',val:fmtE(caEncaisse),ico:'cash',tint:'tint-blue',delta:'+12,4 %',up:true,sub:'ce trimestre'},
+    {label:'En attente',val:fmtE(enAttente),ico:'clock',tint:'tint-yellow',delta:wait.length+' factures',up:null,sub:'à encaisser'},
+    {label:'Dépenses',val:fmtE(depTTC),ico:'wallet',tint:'tint-violet',delta:'+3,1 %',up:false,sub:'TTC cumulé'},
+    {label:'Trésorerie',val:fmtE(treso),ico:'trend',tint:'tint-aqua',delta:'Solde net',up:true,sub:'encaissé − dépensé'},
+  ];
+  let kh=kpis.map(k=>`<div class="card kpi">
+    <div class="k-top"><div class="k-ico ${k.tint}">${svg(I[k.ico])}</div>
+    ${k.up===null?'':`<span class="k-delta ${k.up?'up':'down'}">${k.up?'▲':'▼'} ${k.delta}</span>`}</div>
+    <div class="k-label">${k.label}</div><div class="k-val">${k.val}</div>
+    <div class="k-delta" style="color:var(--muted)">${k.up===null?k.delta+' · ':''}${k.sub}</div></div>`).join('');
+
+  // monthly revenue vs expenses (6 months)
+  const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push({y:d.getFullYear(),m:d.getMonth()});}
+  const rev=months.map(mo=>state.invoices.filter(i=>i.status==='payée').filter(i=>{const d=new Date(i.date);return d.getFullYear()===mo.y&&d.getMonth()===mo.m;}).reduce((s,i)=>s+docTTC(i),0));
+  const exs=months.map(mo=>state.expenses.filter(e=>{const d=new Date(e.date);return d.getFullYear()===mo.y&&d.getMonth()===mo.m;}).reduce((s,e)=>s+e.ht*(1+e.vat/100),0));
+  const labels=months.map(mo=>MONTHS[mo.m]);
+
+  // expense breakdown by category
+  const catMap={};state.expenses.forEach(e=>catMap[e.category]=(catMap[e.category]||0)+e.ht*(1+e.vat/100));
+  const cats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+
+  view().innerHTML=`
+    <div class="grid-kpi">${kh}</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="panel-h"><div><h3>Recettes vs dépenses</h3></div><div class="hint">6 derniers mois</div></div>
+        <div class="chart-legend"><span class="leg"><i style="background:#2a78d6"></i>Recettes</span><span class="leg"><i style="background:#eb6834"></i>Dépenses</span></div>
+        <div class="panel-b" id="barChart"></div>
+      </div>
+      <div class="card">
+        <div class="panel-h"><h3>Répartition des dépenses</h3></div>
+        <div class="panel-b" id="donutChart"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="panel-h"><h3>Factures récentes</h3><button class="btn btn-ghost" onclick="go('invoices')">Tout voir →</button></div>
+        <div class="panel-b" style="padding-top:0" id="recentInv"></div>
+      </div>
+      <div class="card">
+        <div class="panel-h"><h3>TVA du trimestre</h3><div class="hint">CA3 estimée</div></div>
+        <div class="panel-b">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            ${vatRow('TVA collectée',tvaCol,'#2a78d6')}
+            ${vatRow('TVA déductible',tvaDed,'#1baf7a')}
+            <div style="display:flex;justify-content:space-between;padding:16px 0 4px;margin-top:8px;border-top:2px solid var(--line-strong)">
+              <span style="font-weight:750;font-size:15px">TVA à décaisser</span>
+              <span style="font-weight:800;font-size:20px;font-variant-numeric:tabular-nums;color:${tvaCol-tvaDed>=0?'var(--crit)':'var(--good)'}">${fmtE2(Math.max(0,tvaCol-tvaDed))}</span>
+            </div>
+            <p style="color:var(--muted);font-size:12px;margin:12px 0 0">Estimation indicative sur la base des factures encaissées et des dépenses saisies.</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  drawBars('barChart',labels,[{name:'Recettes',color:'#2a78d6',data:rev},{name:'Dépenses',color:'#eb6834',data:exs}]);
+  drawDonut('donutChart',cats.map((c,i)=>({label:c[0],value:c[1],color:PALETTE[i%PALETTE.length]})));
+  const recent=[...state.invoices].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+  document.getElementById('recentInv').innerHTML=`<table><tbody>${recent.map(i=>{const c=client(i.clientId);return`
+    <tr style="cursor:pointer" onclick="previewDoc('${i.id}','invoice')">
+      <td><div class="cli"><div class="ava" style="background:${c.color}">${initials(c.name)}</div><div><div style="font-weight:650">${c.name}</div><small style="color:var(--muted)">${i.number}</small></div></div></td>
+      <td>${statusTag(i.status)}</td>
+      <td class="num">${fmtE(docTTC(i))}</td></tr>`}).join('')}</tbody></table>`;
+};
+function vatRow(l,v,c){return`<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)">
+  <span style="display:flex;align-items:center;gap:9px;color:var(--ink-2);font-weight:550"><i style="width:9px;height:9px;border-radius:3px;background:${c}"></i>${l}</span>
+  <span style="font-weight:700;font-variant-numeric:tabular-nums">${fmtE2(v)}</span></div>`;}
+
+function statusTag(s){const m={'payée':['t-paid','Payée'],'en attente':['t-wait','En attente'],'en retard':['t-late','En retard'],'brouillon':['t-draft','Brouillon'],
+  'envoyé':['t-wait','Envoyé'],'accepté':['t-paid','Accepté'],'refusé':['t-late','Refusé']};const[cl,tx]=m[s]||['t-draft',s];return`<span class="tag ${cl}">${tx}</span>`;}
+
+/* -------- Invoices -------- */
+let invFilter='tous';
+VIEWS.invoices=function(){
+  const counts={tous:state.invoices.length};['payée','en attente','en retard','brouillon'].forEach(s=>counts[s]=state.invoices.filter(i=>i.status===s).length);
+  const list=state.invoices.filter(i=>invFilter==='tous'||i.status===invFilter).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  view().innerHTML=`
+    <div class="toolbar">
+      <div class="seg">
+        ${['tous','payée','en attente','en retard','brouillon'].map(s=>`<button class="${invFilter===s?'on':''}" onclick="invFilter='${s}';VIEWS.invoices()">${s[0].toUpperCase()+s.slice(1)} <span style="opacity:.6">${counts[s]}</span></button>`).join('')}
+      </div>
+      <div class="grow"></div>
+      <button class="btn btn-primary" onclick="editInvoice()">${svg(I.invoice)} Nouvelle facture</button>
+    </div>
+    <div class="card"><div class="panel-b" style="padding:0">
+    ${list.length?`<table><thead><tr><th>Numéro</th><th>Client</th><th>Date</th><th>Échéance</th><th>Statut</th><th class="num">Montant TTC</th><th></th></tr></thead>
+    <tbody>${list.map(i=>{const c=client(i.clientId);return`<tr>
+      <td class="mono" style="font-weight:650">${i.number}</td>
+      <td><div class="cli"><div class="ava" style="background:${c.color}">${initials(c.name)}</div>${c.name}</div></td>
+      <td>${fmtD(i.date)}</td><td>${fmtD(i.due)}</td>
+      <td>${statusTag(i.status)}</td>
+      <td class="num">${fmtE2(docTTC(i))}</td>
+      <td><div class="rowbtns">
+        <button class="mini" title="Aperçu" onclick="previewDoc('${i.id}','invoice')">${svg(I.eye)}</button>
+        ${i.status!=='payée'?`<button class="mini" title="Marquer payée" onclick="markPaid('${i.id}')" style="color:var(--good)">${svg(I.check)}</button>`:''}
+        <button class="mini" title="Modifier" onclick="editInvoice('${i.id}')">${svg(I.edit)}</button>
+        <button class="mini del" title="Supprimer" onclick="delDoc('${i.id}','invoices')">${svg(I.trash)}</button>
+      </div></td></tr>`}).join('')}</tbody></table>`
+    :`<div class="empty">${svg(I.invoice)}<p>Aucune facture dans cette catégorie.</p></div>`}
+    </div></div>`;
+};
+function markPaid(id){const i=state.invoices.find(x=>x.id===id);i.status='payée';save();toast('Facture marquée comme payée');go('invoices');}
+
+/* -------- Quotes -------- */
+VIEWS.quotes=function(){
+  const list=[...state.quotes].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  view().innerHTML=`
+    <div class="toolbar"><div class="grow"></div><button class="btn btn-primary" onclick="editQuote()">${svg(I.quote)} Nouveau devis</button></div>
+    <div class="card"><div class="panel-b" style="padding:0">
+    ${list.length?`<table><thead><tr><th>Numéro</th><th>Client</th><th>Date</th><th>Statut</th><th class="num">Montant TTC</th><th></th></tr></thead>
+    <tbody>${list.map(q=>{const c=client(q.clientId);return`<tr>
+      <td class="mono" style="font-weight:650">${q.number}</td>
+      <td><div class="cli"><div class="ava" style="background:${c.color}">${initials(c.name)}</div>${c.name}</div></td>
+      <td>${fmtD(q.date)}</td><td>${statusTag(q.status)}</td>
+      <td class="num">${fmtE2(docTTC(q))}</td>
+      <td><div class="rowbtns">
+        <button class="mini" title="Aperçu" onclick="previewDoc('${q.id}','quote')">${svg(I.eye)}</button>
+        ${q.status==='accepté'?`<button class="mini" title="Convertir en facture" onclick="convertQuote('${q.id}')" style="color:var(--good)">${svg(I.invoice)}</button>`:''}
+        <button class="mini del" title="Supprimer" onclick="delDoc('${q.id}','quotes')">${svg(I.trash)}</button>
+      </div></td></tr>`}).join('')}</tbody></table>`:`<div class="empty">${svg(I.quote)}<p>Aucun devis.</p></div>`}
+    </div></div>`;
+};
+function convertQuote(id){const q=state.quotes.find(x=>x.id===id);
+  const n='FAC-'+(2026001+state.invoices.length);
+  state.invoices.push({id:uid('f'),number:n,clientId:q.clientId,date:todayISO(),due:todayISO(),status:'en attente',vat:q.vat,lines:JSON.parse(JSON.stringify(q.lines))});
+  save();toast('Devis converti en facture '+n);go('invoices');}
+
+/* -------- Clients -------- */
+VIEWS.clients=function(){
+  view().innerHTML=`
+    <div class="toolbar"><div class="grow"></div><button class="btn btn-primary" onclick="editClient()">${svg(I.clients)} Nouveau client</button></div>
+    <div class="grid-2b" style="grid-template-columns:repeat(3,1fr)">
+    ${state.clients.map(c=>{const cinv=state.invoices.filter(i=>i.clientId===c.id);const ca=cinv.filter(i=>i.status==='payée').reduce((s,i)=>s+docTTC(i),0);const due=cinv.filter(i=>i.status!=='payée'&&i.status!=='brouillon').reduce((s,i)=>s+docTTC(i),0);
+      return`<div class="card" style="padding:18px">
+        <div class="cli" style="margin-bottom:14px"><div class="ava" style="width:42px;height:42px;border-radius:11px;font-size:15px;background:${c.color}">${initials(c.name)}</div>
+        <div><div style="font-weight:700;font-size:14.5px">${c.name}</div><small style="color:var(--muted)">${c.city} · ${cinv.length} facture(s)</small></div>
+        <div class="grow"></div><button class="mini" onclick="editClient('${c.id}')">${svg(I.edit)}</button></div>
+        <div style="display:flex;gap:8px;color:var(--ink-2);font-size:12.5px;margin-bottom:4px">${svg(I.clients,1.8)}<span style="align-self:center">${c.contact}</span></div>
+        <div style="color:var(--muted);font-size:12.5px;margin-bottom:14px">${c.email}</div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1;background:var(--surface-2);border-radius:10px;padding:10px 12px"><div style="font-size:11px;color:var(--muted);font-weight:600">CA réalisé</div><div style="font-weight:750;font-size:15px">${fmtE(ca)}</div></div>
+          <div style="flex:1;background:var(--surface-2);border-radius:10px;padding:10px 12px"><div style="font-size:11px;color:var(--muted);font-weight:600">En attente</div><div style="font-weight:750;font-size:15px;color:${due>0?'var(--warn)':'var(--ink)'}">${fmtE(due)}</div></div>
+        </div></div>`}).join('')}
+    </div>`;
+};
+
+/* -------- Expenses -------- */
+VIEWS.expenses=function(){
+  const list=[...state.expenses].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const total=list.reduce((s,e)=>s+e.ht*(1+e.vat/100),0);
+  view().innerHTML=`
+    <div class="toolbar">
+      <div style="color:var(--ink-2);font-size:13px">Total des dépenses saisies : <b style="color:var(--ink);font-size:15px">${fmtE2(total)}</b> TTC</div>
+      <div class="grow"></div><button class="btn btn-primary" onclick="editExpense()">${svg(I.expense)} Nouvelle dépense</button></div>
+    <div class="card"><div class="panel-b" style="padding:0">
+    <table><thead><tr><th>Date</th><th>Catégorie</th><th>Fournisseur</th><th class="num">Montant HT</th><th class="num">TVA</th><th class="num">TTC</th><th></th></tr></thead>
+    <tbody>${list.map(e=>`<tr>
+      <td>${fmtD(e.date)}</td>
+      <td><span class="tag t-draft" style="background:var(--surface-2)">${e.category}</span></td>
+      <td>${e.supplier}</td>
+      <td class="num">${fmtE2(e.ht)}</td>
+      <td class="num" style="color:var(--muted)">${e.vat}%</td>
+      <td class="num">${fmtE2(e.ht*(1+e.vat/100))}</td>
+      <td><div class="rowbtns"><button class="mini" onclick="editExpense('${e.id}')">${svg(I.edit)}</button><button class="mini del" onclick="delDoc('${e.id}','expenses')">${svg(I.trash)}</button></div></td>
+      </tr>`).join('')}</tbody></table>
+    </div></div>`;
+};
+
+/* -------- Reports -------- */
+VIEWS.reports=function(){
+  const paid=state.invoices.filter(i=>i.status==='payée');
+  const caHT=paid.reduce((s,i)=>s+docHT(i),0);
+  const depHT=state.expenses.reduce((s,e)=>s+e.ht,0);
+  const resultat=caHT-depHT;
+  // per client CA
+  const byCli=state.clients.map(c=>({name:c.name,color:c.color,val:paid.filter(i=>i.clientId===c.id).reduce((s,i)=>s+docTTC(i),0)})).sort((a,b)=>b.val-a.val);
+  view().innerHTML=`
+    <div class="grid-kpi" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card kpi"><div class="k-label">Chiffre d'affaires HT</div><div class="k-val">${fmtE(caHT)}</div><div class="k-delta up">▲ Exercice en cours</div></div>
+      <div class="card kpi"><div class="k-label">Total charges HT</div><div class="k-val">${fmtE(depHT)}</div><div class="k-delta" style="color:var(--muted)">Dépenses déductibles</div></div>
+      <div class="card kpi"><div class="k-label">Résultat estimé</div><div class="k-val" style="color:${resultat>=0?'var(--good)':'var(--crit)'}">${fmtE(resultat)}</div><div class="k-delta ${resultat>=0?'up':'down'}">${resultat>=0?'Bénéfice':'Déficit'}</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="panel-h"><h3>Chiffre d'affaires par client</h3></div><div class="panel-b" id="cliBars"></div></div>
+      <div class="card"><div class="panel-h"><h3>Compte de résultat simplifié</h3></div><div class="panel-b">
+        ${resRow('Produits (CA HT)',caHT,'var(--good)')}
+        ${resRow('− Charges (HT)',-depHT,'var(--crit)')}
+        <div style="display:flex;justify-content:space-between;padding:16px 0 4px;margin-top:8px;border-top:2px solid var(--line-strong)">
+          <span style="font-weight:750;font-size:15px">Résultat net</span>
+          <span style="font-weight:800;font-size:20px;font-variant-numeric:tabular-nums;color:${resultat>=0?'var(--good)':'var(--crit)'}">${fmtE2(resultat)}</span></div>
+        <p style="color:var(--muted);font-size:12px;margin-top:14px">Document indicatif — ne remplace pas une comptabilité certifiée.</p>
+      </div></div>
+    </div>`;
+  drawHBars('cliBars',byCli.filter(c=>c.val>0));
+};
+function resRow(l,v,c){return`<div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)">
+  <span style="color:var(--ink-2);font-weight:550">${l}</span><span style="font-weight:700;font-variant-numeric:tabular-nums;color:${c}">${fmtE2(v)}</span></div>`;}
+
+/* -------- Settings -------- */
+VIEWS.settings=function(){
+  const c=state.company;
+  view().innerHTML=`
+    <div class="grid-2b">
+      <div class="card"><div class="panel-h"><h3>Informations de l'entreprise</h3></div><div class="panel-b">
+        <div class="form-grid">
+          <div class="fg full"><label>Raison sociale</label><input id="s_name" value="${c.name}"></div>
+          <div class="fg"><label>SIRET</label><input id="s_siret" value="${c.siret}"></div>
+          <div class="fg"><label>Email</label><input id="s_email" value="${c.email}"></div>
+          <div class="fg full"><label>Adresse</label><input id="s_address" value="${c.address}"></div>
+          <div class="fg full"><label>IBAN</label><input id="s_iban" value="${c.iban}"></div>
+        </div>
+        <div style="margin-top:16px"><button class="btn btn-primary" onclick="saveCompany()">${svg(I.check)} Enregistrer</button></div>
+      </div></div>
+      <div class="card"><div class="panel-h"><h3>Apparence & données</h3></div><div class="panel-b">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:650">Thème sombre</div><small style="color:var(--muted)">Confort visuel en faible luminosité</small></div>
+          <button class="btn" onclick="toggleTheme()">Basculer</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:650">Exporter les données</div><small style="color:var(--muted)">Sauvegarde JSON de vos données</small></div>
+          <button class="btn" onclick="exportData()">${svg(I.download)} Exporter</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+          <div><div style="font-weight:650">Réinitialiser</div><small style="color:var(--muted)">Rétablir les données de démonstration</small></div>
+          <button class="btn btn-danger" onclick="resetData()">${svg(I.trash)} Réinitialiser</button></div>
+        <p style="color:var(--muted);font-size:12px;margin-top:16px;line-height:1.5">💾 Toutes vos données sont enregistrées <b>localement dans votre navigateur</b> (aucun envoi sur internet). Elles restent disponibles à la prochaine ouverture du fichier.</p>
+      </div></div>
+    </div>`;
+};
+function saveCompany(){const g=id=>document.getElementById(id).value;
+  state.company={name:g('s_name'),siret:g('s_siret'),email:g('s_email'),address:g('s_address'),iban:g('s_iban')};save();toast('Informations enregistrées');}
+function exportData(){const b=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download='comptalys-donnees.json';a.click();URL.revokeObjectURL(u);toast('Données exportées');}
+function resetData(){if(confirm('Réinitialiser toutes les données de démonstration ?')){localStorage.removeItem(LS);state=load();buildNav();go('dashboard');toast('Données réinitialisées');}}
+
+/* ============================ CHARTS ============================ */
+function drawBars(el,labels,series){
+  const W=560,H=240,pl=52,pb=28,pt=12,pr=8;const iw=W-pl-pr,ih=H-pt-pb;
+  const max=Math.max(...series.flatMap(s=>s.data),1);const step=niceStep(max);const top=Math.ceil(max/step)*step;
+  const groups=labels.length;const gw=iw/groups;const bw=Math.min(20,gw/(series.length+1.4));const gap=4;
+  let g='';
+  for(let t=0;t<=top;t+=step){const y=pt+ih-(t/top)*ih;
+    g+=`<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="var(--line)" stroke-width="1"/>`;
+    g+=`<text x="${pl-8}" y="${y+3.5}" text-anchor="end" font-size="10.5" fill="var(--muted)">${(t/1000).toFixed(0)}k</text>`;}
+  labels.forEach((lb,i)=>{
+    const cx=pl+gw*i+gw/2;const totalW=series.length*bw+(series.length-1)*gap;let bx=cx-totalW/2;
+    series.forEach(s=>{const h=(s.data[i]/top)*ih;const y=pt+ih-h;
+      g+=`<g class="bar-hit" data-tip="${lb} · ${s.name}|${fmtE(s.data[i])}"><rect x="${bx-3}" y="${pt}" width="${bw+6}" height="${ih}" fill="transparent"/><rect class="bar" x="${bx}" y="${y}" width="${bw}" height="${Math.max(h,1)}" rx="4" fill="${s.color}"/></g>`;
+      bx+=bw+gap;});
+    g+=`<text x="${cx}" y="${H-9}" text-anchor="middle" font-size="11" fill="var(--muted)">${lb}</text>`;});
+  document.getElementById(el).innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${g}</svg>`;
+  wireTips(el);
+}
+function drawHBars(el,items){
+  const max=Math.max(...items.map(i=>i.val),1);
+  document.getElementById(el).innerHTML=items.map(i=>`
+    <div style="display:flex;align-items:center;gap:12px;margin:9px 0">
+      <div style="width:140px;font-size:12.5px;color:var(--ink-2);font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.name}</div>
+      <div style="flex:1;background:var(--surface-2);border-radius:6px;height:22px;overflow:hidden"><div style="width:${i.val/max*100}%;height:100%;background:${i.color};border-radius:6px"></div></div>
+      <div style="width:80px;text-align:right;font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums">${fmtE(i.val)}</div>
+    </div>`).join('');
+}
+function drawDonut(el,data){
+  const total=data.reduce((s,d)=>s+d.value,0)||1;const R=78,r=50,cx=100,cy=100;let a=-Math.PI/2;
+  let segs='';data.forEach(d=>{const frac=d.value/total;const a2=a+frac*Math.PI*2;
+    const x1=cx+R*Math.cos(a),y1=cy+R*Math.sin(a),x2=cx+R*Math.cos(a2),y2=cy+R*Math.sin(a2);
+    const xi1=cx+r*Math.cos(a2),yi1=cy+r*Math.sin(a2),xi2=cx+r*Math.cos(a),yi2=cy+r*Math.sin(a);
+    const large=frac>.5?1:0;
+    segs+=`<path class="donut-seg" data-tip="${d.label}|${fmtE(d.value)} · ${(frac*100).toFixed(0)}%" d="M${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} L${xi1} ${yi1} A${r} ${r} 0 ${large} 0 ${xi2} ${yi2} Z" fill="${d.color}" stroke="var(--surface)" stroke-width="2"/>`;
+    a=a2;});
+  const leg=data.map(d=>`<span class="leg"><i style="background:${d.color}"></i>${d.label} <b style="color:var(--ink);margin-left:2px">${(d.value/total*100).toFixed(0)}%</b></span>`).join('');
+  document.getElementById(el).innerHTML=`<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <svg viewBox="0 0 200 200" width="176" height="176" style="flex:none">${segs}
+    <text x="100" y="94" text-anchor="middle" font-size="12" fill="var(--muted)">Total</text>
+    <text x="100" y="115" text-anchor="middle" font-size="19" font-weight="750" fill="var(--ink)">${fmtE(total)}</text></svg>
+    <div style="display:flex;flex-direction:column;gap:9px">${leg}</div></div>`;
+  wireTips(el);
+}
+function niceStep(max){const raw=max/4;const mag=Math.pow(10,Math.floor(Math.log10(raw)));const n=raw/mag;
+  return (n<1.5?1:n<3?2:n<7?5:10)*mag;}
+function wireTips(el){const tip=document.getElementById('tip');
+  document.getElementById(el).querySelectorAll('[data-tip]').forEach(n=>{
+    n.addEventListener('mousemove',e=>{const[t,v]=n.dataset.tip.split('|');tip.innerHTML=`${t}<br><b>${v}</b>`;
+      tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY-10+'px';tip.style.opacity=1;});
+    n.addEventListener('mouseleave',()=>tip.style.opacity=0);});
+}
+
+/* ============================ MODALS ============================ */
+const overlay=document.getElementById('overlay');
+function openModal(html){overlay.innerHTML=html;overlay.classList.add('on');
+  overlay.onclick=e=>{if(e.target===overlay)closeModal();};}
+function closeModal(){overlay.classList.remove('on');overlay.innerHTML='';}
+
+function clientOptions(sel){return state.clients.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${c.name}</option>`).join('');}
+
+let draftLines=[];
+function editInvoice(id){const inv=id?state.invoices.find(i=>i.id===id):null;
+  draftLines=inv?JSON.parse(JSON.stringify(inv.lines)):[{desc:'',qty:1,unit:0}];
+  openModal(`<div class="modal wide"><div class="modal-h"><h2>${inv?'Modifier la facture':'Nouvelle facture'}</h2><button class="mini" onclick="closeModal()">${svg(I.x)}</button></div>
+    <div class="modal-b">
+      <div class="form-grid">
+        <div class="fg"><label>Client</label><select id="i_client">${clientOptions(inv?.clientId)}</select></div>
+        <div class="fg"><label>Statut</label><select id="i_status">${['brouillon','en attente','payée','en retard'].map(s=>`<option ${inv?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="fg"><label>Date d'émission</label><input type="date" id="i_date" value="${inv?.date||todayISO()}"></div>
+        <div class="fg"><label>Date d'échéance</label><input type="date" id="i_due" value="${inv?.due||todayISO()}"></div>
+      </div>
+      <div style="margin:20px 0 8px;font-weight:650;font-size:13px;color:var(--ink-2)">Lignes de prestation</div>
+      <table class="lines-tbl"><thead><tr><th>Description</th><th style="width:70px">Qté</th><th style="width:110px">P.U. HT</th><th style="width:100px" class="num">Total</th><th style="width:34px"></th></tr></thead>
+        <tbody id="linesBody"></tbody></table>
+      <button class="btn btn-ghost" style="margin-top:8px;color:var(--brand)" onclick="addLine()">+ Ajouter une ligne</button>
+      <div class="row" style="justify-content:flex-end;margin-top:6px"><div class="fg" style="width:150px"><label>TVA (%)</label><select id="i_vat" onchange="renderLines()">${[20,10,5.5,0].map(v=>`<option ${inv?.vat===v?'selected':''} value="${v}">${v} %</option>`).join('')}</select></div></div>
+      <div class="totbox" id="totBox"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveInvoice('${id||''}')">${svg(I.check)} Enregistrer</button></div></div>`);
+  renderLines();
+}
+function addLine(){pullLines();draftLines.push({desc:'',qty:1,unit:0});renderLines();}
+function rmLine(i){pullLines();draftLines.splice(i,1);if(!draftLines.length)draftLines.push({desc:'',qty:1,unit:0});renderLines();}
+function pullLines(){document.querySelectorAll('#linesBody tr').forEach((tr,i)=>{if(!draftLines[i])return;
+  draftLines[i].desc=tr.querySelector('.l-desc').value;draftLines[i].qty=parseFloat(tr.querySelector('.l-qty').value)||0;draftLines[i].unit=parseFloat(tr.querySelector('.l-unit').value)||0;});}
+function renderLines(){const vat=parseFloat(document.getElementById('i_vat').value)||0;
+  document.getElementById('linesBody').innerHTML=draftLines.map((l,i)=>`<tr>
+    <td><input class="l-desc" value="${l.desc.replace(/"/g,'&quot;')}" placeholder="Description de la prestation" oninput="recalc()"></td>
+    <td><input class="l-qty" type="number" step="0.5" value="${l.qty}" oninput="recalc()"></td>
+    <td><input class="l-unit" type="number" step="10" value="${l.unit}" oninput="recalc()"></td>
+    <td class="num line-total" data-i="${i}">${fmtE2(l.qty*l.unit)}</td>
+    <td><button class="mini del" onclick="rmLine(${i})">${svg(I.x)}</button></td></tr>`).join('');
+  recalc();}
+function recalc(){const vat=parseFloat(document.getElementById('i_vat').value)||0;let ht=0;
+  document.querySelectorAll('#linesBody tr').forEach((tr,i)=>{const q=parseFloat(tr.querySelector('.l-qty').value)||0;const u=parseFloat(tr.querySelector('.l-unit').value)||0;
+    tr.querySelector('.line-total').textContent=fmtE2(q*u);ht+=q*u;});
+  const tva=ht*vat/100;document.getElementById('totBox').innerHTML=`
+    <div class="tr"><span>Total HT</span><span class="mono">${fmtE2(ht)}</span></div>
+    <div class="tr"><span>TVA (${vat} %)</span><span class="mono">${fmtE2(tva)}</span></div>
+    <div class="tr grand"><span>Total TTC</span><span class="mono">${fmtE2(ht+tva)}</span></div>`;}
+function saveInvoice(id){pullLines();const g=x=>document.getElementById(x).value;
+  const data={clientId:g('i_client'),status:g('i_status'),date:g('i_date'),due:g('i_due'),vat:parseFloat(g('i_vat')),lines:draftLines.filter(l=>l.desc||l.unit)};
+  if(!data.lines.length){toast('Ajoutez au moins une ligne');return;}
+  if(id){Object.assign(state.invoices.find(i=>i.id===id),data);}
+  else{data.id=uid('f');data.number='FAC-'+(2026001+state.invoices.length);state.invoices.push(data);}
+  save();closeModal();toast(id?'Facture mise à jour':'Facture créée');go('invoices');}
+
+function editQuote(){draftLines=[{desc:'',qty:1,unit:0}];
+  openModal(`<div class="modal wide"><div class="modal-h"><h2>Nouveau devis</h2><button class="mini" onclick="closeModal()">${svg(I.x)}</button></div>
+    <div class="modal-b"><div class="form-grid">
+      <div class="fg"><label>Client</label><select id="i_client">${clientOptions()}</select></div>
+      <div class="fg"><label>Date</label><input type="date" id="i_date" value="${todayISO()}"></div></div>
+      <div style="margin:20px 0 8px;font-weight:650;font-size:13px;color:var(--ink-2)">Lignes</div>
+      <table class="lines-tbl"><thead><tr><th>Description</th><th style="width:70px">Qté</th><th style="width:110px">P.U. HT</th><th style="width:100px" class="num">Total</th><th style="width:34px"></th></tr></thead><tbody id="linesBody"></tbody></table>
+      <button class="btn btn-ghost" style="margin-top:8px;color:var(--brand)" onclick="addLine()">+ Ajouter une ligne</button>
+      <select id="i_vat" style="display:none"><option value="20" selected>20</option></select>
+      <div class="totbox" id="totBox"></div></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveQuote()">${svg(I.check)} Créer le devis</button></div></div>`);
+  renderLines();}
+function saveQuote(){pullLines();const g=x=>document.getElementById(x).value;
+  const lines=draftLines.filter(l=>l.desc||l.unit);if(!lines.length){toast('Ajoutez au moins une ligne');return;}
+  state.quotes.push({id:uid('q'),number:'DEV-'+(2026009+state.quotes.length),clientId:g('i_client'),date:g('i_date'),status:'envoyé',vat:20,lines});
+  save();closeModal();toast('Devis créé');go('quotes');}
+
+function editClient(id){const c=id?state.clients.find(x=>x.id===id):null;
+  openModal(`<div class="modal"><div class="modal-h"><h2>${c?'Modifier le client':'Nouveau client'}</h2><button class="mini" onclick="closeModal()">${svg(I.x)}</button></div>
+    <div class="modal-b"><div class="form-grid">
+      <div class="fg full"><label>Nom / Raison sociale</label><input id="c_name" value="${c?.name||''}"></div>
+      <div class="fg"><label>Contact</label><input id="c_contact" value="${c?.contact||''}"></div>
+      <div class="fg"><label>Ville</label><input id="c_city" value="${c?.city||''}"></div>
+      <div class="fg"><label>Email</label><input id="c_email" value="${c?.email||''}"></div>
+      <div class="fg"><label>SIRET</label><input id="c_siret" value="${c?.siret||''}"></div>
+    </div></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveClient('${id||''}')">${svg(I.check)} Enregistrer</button></div></div>`);}
+function saveClient(id){const g=x=>document.getElementById(x).value;if(!g('c_name')){toast('Le nom est requis');return;}
+  const data={name:g('c_name'),contact:g('c_contact'),city:g('c_city'),email:g('c_email'),siret:g('c_siret')};
+  if(id)Object.assign(state.clients.find(c=>c.id===id),data);
+  else{data.id=uid('c');data.color=PALETTE[state.clients.length%PALETTE.length];state.clients.push(data);}
+  save();closeModal();toast('Client enregistré');go('clients');}
+
+function editExpense(id){const e=id?state.expenses.find(x=>x.id===id):null;
+  const cats=['Loyer & charges','Logiciels & abonnements','Fournitures','Sous-traitance','Déplacements','Marketing','Matériel','Autres'];
+  openModal(`<div class="modal"><div class="modal-h"><h2>${e?'Modifier la dépense':'Nouvelle dépense'}</h2><button class="mini" onclick="closeModal()">${svg(I.x)}</button></div>
+    <div class="modal-b"><div class="form-grid">
+      <div class="fg"><label>Date</label><input type="date" id="e_date" value="${e?.date||todayISO()}"></div>
+      <div class="fg"><label>Catégorie</label><select id="e_cat">${cats.map(c=>`<option ${e?.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="fg full"><label>Fournisseur</label><input id="e_sup" value="${e?.supplier||''}"></div>
+      <div class="fg"><label>Montant HT (€)</label><input type="number" step="0.01" id="e_ht" value="${e?.ht||''}"></div>
+      <div class="fg"><label>TVA (%)</label><select id="e_vat">${[20,10,5.5,0].map(v=>`<option ${e?.vat===v?'selected':''} value="${v}">${v} %</option>`).join('')}</select></div>
+    </div></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveExpense('${id||''}')">${svg(I.check)} Enregistrer</button></div></div>`);}
+function saveExpense(id){const g=x=>document.getElementById(x).value;const ht=parseFloat(g('e_ht'));if(!ht){toast('Montant requis');return;}
+  const data={date:g('e_date'),category:g('e_cat'),supplier:g('e_sup'),ht,vat:parseFloat(g('e_vat'))};
+  if(id)Object.assign(state.expenses.find(e=>e.id===id),data);else{data.id=uid('d');state.expenses.push(data);}
+  save();closeModal();toast('Dépense enregistrée');go('expenses');}
+
+function delDoc(id,coll){if(!confirm('Supprimer cet élément ?'))return;state[coll]=state[coll].filter(x=>x.id!==id);save();toast('Élément supprimé');go(current);}
+
+function previewDoc(id,type){const doc=(type==='invoice'?state.invoices:state.quotes).find(d=>d.id===id);const c=client(doc.clientId);const co=state.company;
+  const ht=docHT(doc),tva=docTVA(doc),ttc=docTTC(doc);const title=type==='invoice'?'FACTURE':'DEVIS';
+  openModal(`<div class="modal wide"><div class="modal-h"><h2>Aperçu — ${doc.number}</h2>
+    <div class="row"><button class="btn" onclick="window.print()">${svg(I.download)} Imprimer / PDF</button><button class="mini" onclick="closeModal()">${svg(I.x)}</button></div></div>
+    <div class="modal-b" style="background:var(--bg)"><div class="doc" id="printDoc">
+      <div class="doc-h">
+        <div><div class="logo">₵</div><div style="font-weight:750;font-size:16px">${co.name}</div>
+          <div style="color:#5b6472;font-size:12.5px;margin-top:4px;line-height:1.6">${co.address}<br>SIRET ${co.siret}<br>${co.email}</div></div>
+        <div style="text-align:right"><div class="doc-title">${title}</div>
+          <div style="color:#5b6472;font-size:13px;margin-top:8px;line-height:1.7"><b style="color:#132132">${doc.number}</b><br>Date : ${fmtD(doc.date)}${doc.due?'<br>Échéance : '+fmtD(doc.due):''}</div></div>
+      </div>
+      <div style="background:#f4f6fb;border-radius:10px;padding:14px 18px;margin-bottom:22px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#8a93a3;font-weight:700;margin-bottom:4px">Facturé à</div>
+        <div style="font-weight:700;font-size:15px">${c.name}</div>
+        <div style="color:#5b6472;font-size:13px;margin-top:2px">${c.contact} · ${c.city}<br>${c.email}</div></div>
+      <table><thead><tr><th>Description</th><th style="text-align:center">Qté</th><th class="num">P.U. HT</th><th class="num">Total HT</th></tr></thead>
+        <tbody>${doc.lines.map(l=>`<tr><td style="font-weight:550">${l.desc||'—'}</td><td style="text-align:center">${l.qty}</td><td class="num">${fmtE2(l.unit)}</td><td class="num">${fmtE2(l.qty*l.unit)}</td></tr>`).join('')}</tbody></table>
+      <div class="totbox" style="width:280px">
+        <div class="tr"><span>Total HT</span><span class="mono">${fmtE2(ht)}</span></div>
+        <div class="tr"><span>TVA (${doc.vat} %)</span><span class="mono">${fmtE2(tva)}</span></div>
+        <div class="tr grand"><span>Total TTC</span><span class="mono">${fmtE2(ttc)}</span></div></div>
+      <div style="margin-top:30px;padding-top:16px;border-top:1px solid #eef1f6;color:#8a93a3;font-size:11.5px;line-height:1.6">
+        Règlement par virement — IBAN ${co.iban}<br>${type==='invoice'?'En votre aimable règlement. Merci de votre confiance.':'Devis valable 30 jours. Bon pour accord et signature à retourner.'}</div>
+    </div></div></div>`);}
+
+/* ============================ MISC ============================ */
+function toast(msg){const t=document.getElementById('toast');t.innerHTML=svg(I.check)+msg;t.classList.add('on');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2200);}
+function toggleTheme(){const r=document.documentElement;const dark=r.getAttribute('data-theme')==='dark';
+  r.setAttribute('data-theme',dark?'light':'dark');localStorage.setItem('comptalys_theme',dark?'light':'dark');
+  if(VIEWS[current])VIEWS[current]();}
+document.getElementById('themeBtn').onclick=toggleTheme;
+document.getElementById('quickNew').onclick=()=>editInvoice();
+document.getElementById('globalSearch').oninput=e=>{/* recherche visuelle simple */
+  const q=e.target.value.toLowerCase();if(!q){if(current==='invoices')VIEWS.invoices();return;}};
+
+// theme init
+if(localStorage.getItem('comptalys_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');
+
+buildNav();go('dashboard');
+</script>
